@@ -1,0 +1,148 @@
+<div class="app-container">
+  <!-- Top Summary Metrics -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-icon blue">
+        <i class="fa-solid fa-building"></i>
+      </div>
+      <div>
+        <div class="metric-label">Beszállítók száma</div>
+        <div class="metric-val">{{ suppliers.length }} cég</div>
+      </div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-icon amber">
+        <i class="fa-solid fa-file-invoice"></i>
+      </div>
+      <div>
+        <div class="metric-label">Feldolgozott számlák</div>
+        <div class="metric-val">{{ invoices.length }} db számla</div>
+      </div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-icon green">
+        <i class="fa-solid fa-boxes-stacked"></i>
+      </div>
+      <div>
+        <div class="metric-label">Összesen raktárkészleten</div>
+        <div class="metric-val">{{ totalInStockAcrossAll }} db készülék</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suppliers Grid -->
+  <div class="card">
+    <div class="card-title">
+      <i class="fa-solid fa-building" style="color: var(--primary);"></i>
+      <span>Beszállítók Listája</span>
+      <span class="badge badge-gray" style="margin-left: auto;">{{ suppliers.length }} beszállító</span>
+    </div>
+
+    <div *ngIf="isLoadingSuppliers" class="loading-state">
+      <i class="fa-solid fa-circle-notch fa-spin"></i> Beszállítók betöltése...
+    </div>
+
+    <div *ngIf="!isLoadingSuppliers && suppliers.length > 0" class="suppliers-grid">
+      <div
+        *ngFor="let s of suppliers"
+        class="supplier-card"
+        [class.selected]="selectedSupplier?.id === s.id"
+        (click)="selectSupplier(s)"
+      >
+        <div class="supplier-header">
+          <div class="supplier-name">{{ s.name }}</div>
+          <span class="badge" [ngClass]="s.total_in_stock_qty > 0 ? 'badge-success' : 'badge-gray'">
+            <i class="fa-solid fa-mobile-screen-button"></i> {{ s.total_in_stock_qty }} db raktáron
+          </span>
+        </div>
+
+        <div class="supplier-details">
+          <div><i class="fa-solid fa-id-card"></i> Adószám: <strong>{{ s.tax_number }}</strong></div>
+          <div *ngIf="s.eu_tax_number"><i class="fa-solid fa-globe"></i> EU adószám: {{ s.eu_tax_number }}</div>
+          <div *ngIf="s.address"><i class="fa-solid fa-location-dot"></i> {{ s.address }}</div>
+          <div *ngIf="s.bank_account"><i class="fa-solid fa-building-columns"></i> {{ s.bank_account }}</div>
+          <div class="invoice-count-tag">
+            <i class="fa-solid fa-file-invoice"></i> {{ s.invoice_count }} rögzített számla
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="!isLoadingSuppliers && suppliers.length === 0" class="empty-state">
+      <i class="fa-solid fa-building-circle-exclamation empty-icon"></i>
+      <div>Még nem található rögzített beszállító a rendszerben.</div>
+      <div style="margin-top: 0.5rem;">
+        <a routerLink="/upload" class="btn btn-primary btn-sm">
+          <i class="fa-solid fa-file-arrow-up"></i> Számla feltöltése most
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invoices for Selected Supplier or All Invoices -->
+  <div class="card">
+    <div class="card-title">
+      <i class="fa-solid fa-file-invoice" style="color: var(--primary);"></i>
+      <span>
+        Számlák Listája
+        <span *ngIf="selectedSupplier" style="color: var(--primary);"> – {{ selectedSupplier.name }}</span>
+      </span>
+      <button *ngIf="selectedSupplier" (click)="clearSupplierSelection()" class="btn btn-secondary btn-sm" style="margin-left: auto;">
+        <i class="fa-solid fa-xmark"></i> Összes számla mutatása
+      </button>
+    </div>
+
+    <div *ngIf="isLoadingInvoices" class="loading-state">
+      <i class="fa-solid fa-circle-notch fa-spin"></i> Számlák betöltése...
+    </div>
+
+    <div *ngIf="!isLoadingInvoices" class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Számlaszám</th>
+            <th>Beszállító</th>
+            <th>Keltezés / Teljesítés</th>
+            <th>Fizetési mód</th>
+            <th style="text-align: right;">Nettó összeg</th>
+            <th style="text-align: right;">Bruttó összeg</th>
+            <th style="text-align: center;">Átvétel (Raktáron / Számlázva)</th>
+            <th style="text-align: center;">Státusz</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let inv of invoices">
+            <td>
+              <strong>{{ inv.invoice_number }}</strong>
+            </td>
+            <td>{{ inv.supplier_name }}</td>
+            <td>
+              <div>Kelt: {{ inv.issue_date || 'N/A' }}</div>
+              <div class="text-muted" style="font-size: 0.78rem;">Telj: {{ inv.delivery_date || 'N/A' }}</div>
+            </td>
+            <td>{{ inv.payment_method || 'N/A' }}</td>
+            <td style="text-align: right;">{{ inv.total_net_amount | number }} Ft</td>
+            <td style="text-align: right;"><strong>{{ inv.total_gross_amount | number }} Ft</strong></td>
+            <td style="text-align: center;">
+              <span class="badge" [ngClass]="inv.total_current_quantity > 0 ? 'badge-success' : 'badge-gray'">
+                <i class="fa-solid fa-box"></i> {{ inv.total_current_quantity }} / {{ inv.total_initial_quantity }} db
+              </span>
+            </td>
+            <td style="text-align: center;">
+              <span *ngIf="inv.total_current_quantity > 0" class="badge badge-primary">Raktáron</span>
+              <span *ngIf="inv.total_current_quantity === 0" class="badge badge-gray">Kifogyott / 0 db</span>
+            </td>
+          </tr>
+          <tr *ngIf="invoices.length === 0">
+            <td colspan="8" class="empty-state">
+              <i class="fa-solid fa-file-circle-xmark empty-icon"></i>
+              <div>Nincsenek megjeleníthető számlák.</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

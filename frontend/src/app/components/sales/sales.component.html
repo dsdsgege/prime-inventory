@@ -1,0 +1,184 @@
+<div class="app-container">
+  <!-- Top Metrics -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-icon blue">
+        <i class="fa-solid fa-cash-register"></i>
+      </div>
+      <div>
+        <div class="metric-label">Összes eladási bevétel</div>
+        <div class="metric-val">{{ report.total_revenue | number }} Ft</div>
+      </div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-icon amber">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+      </div>
+      <div>
+        <div class="metric-label">Beszerzési bekerülés (ELÁBÉ)</div>
+        <div class="metric-val text-amber">{{ report.total_cost | number }} Ft</div>
+      </div>
+    </div>
+
+    <div class="metric-card profit-card">
+      <div class="metric-icon green">
+        <i class="fa-solid fa-chart-line"></i>
+      </div>
+      <div>
+        <div class="metric-label">Realizált Bruttó Haszon</div>
+        <div class="metric-val text-green">
+          +{{ report.total_profit | number }} Ft
+          <span class="margin-badge">{{ report.profit_margin_percent | number:'1.1-1' }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-icon purple">
+        <i class="fa-solid fa-bag-shopping"></i>
+      </div>
+      <div>
+        <div class="metric-label">Értékesített darabszám</div>
+        <div class="metric-val">{{ report.total_units_sold }} db ({{ report.total_sales_count }} eladás)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card filter-card">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label><i class="fa-solid fa-building"></i> Beszállító:</label>
+        <select [(ngModel)]="selectedSupplierId" (ngModelChange)="loadReport()">
+          <option [ngValue]="null">Összes beszállító</option>
+          <option *ngFor="let s of suppliers" [ngValue]="s.id">{{ s.name }}</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-calendar-day"></i> Kezdő dátum:</label>
+        <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="loadReport()" />
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-calendar-day"></i> Záró dátum:</label>
+        <input type="date" [(ngModel)]="dateTo" (ngModelChange)="loadReport()" />
+      </div>
+
+      <div class="filter-group search-group">
+        <label><i class="fa-solid fa-magnifying-glass"></i> Keresés:</label>
+        <div class="input-with-icon">
+          <input
+            type="text"
+            placeholder="Termék, vevő, kód, számla..."
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="loadReport()"
+          />
+          <button *ngIf="searchQuery" (click)="searchQuery = ''; loadReport()" class="clear-btn">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sales Table -->
+  <div class="card">
+    <div class="card-title">
+      <i class="fa-solid fa-receipt" style="color: var(--primary);"></i>
+      <span>Értékesítési Tranzakciók & Haszon Részletezés</span>
+      <span class="badge badge-gray" style="margin-left: auto;">{{ report.sales.length }} értékesítés</span>
+    </div>
+
+    <div *ngIf="isLoading" style="padding: 2.5rem; text-align: center; color: #64748b;">
+      <i class="fa-solid fa-circle-notch fa-spin"></i> Kimutatás betöltése...
+    </div>
+
+    <div *ngIf="!isLoading" class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Időpont</th>
+            <th>Termék megnevezése</th>
+            <th>NMHH Kód</th>
+            <th>Beszállító & Számla</th>
+            <th style="text-align: right; white-space: nowrap; line-height: 1.2;">
+              Beszerzési ár<br>
+              <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(Bekerülés)</span>
+            </th>
+            <th style="text-align: right; white-space: nowrap; line-height: 1.2;">
+              Eladási ár<br>
+              <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(Bruttó bevétel)</span>
+            </th>
+            <th style="text-align: center; white-space: nowrap;">Realizált Haszon</th>
+            <th>Vevő / Megjegyzés</th>
+            <th style="text-align: right;">Művelet</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let sale of report.sales">
+            <td style="white-space: nowrap; font-size: 0.8rem; color: #64748b;">
+              {{ sale.sold_at | date:'yyyy.MM.dd HH:mm' }}
+            </td>
+            <td>
+              <strong>{{ sale.product_name }}</strong>
+              <span *ngIf="sale.quantity > 1" class="badge badge-gray" style="margin-left: 0.25rem;">
+                {{ sale.quantity }} db
+              </span>
+            </td>
+            <td>
+              <span *ngIf="sale.used_wipe_code" class="badge badge-code">
+                <i class="fa-solid fa-shield-halved"></i> {{ sale.used_wipe_code }}
+              </span>
+              <span *ngIf="!sale.used_wipe_code" class="text-muted" style="font-size: 0.8rem;">–</span>
+            </td>
+            <td>
+              <div>{{ sale.supplier_name }}</div>
+              <div class="badge badge-gray" style="margin-top: 2px;">{{ sale.invoice_number }}</div>
+            </td>
+            <td style="text-align: right; color: #64748b; white-space: nowrap;">
+              {{ (sale.unit_cost_gross * sale.quantity) | number }} Ft
+            </td>
+            <td style="text-align: right; font-weight: 600; white-space: nowrap;">
+              {{ sale.sale_price | number }} Ft
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+              <span
+                class="badge"
+                [ngClass]="sale.profit >= 0 ? 'badge-success' : 'badge-danger'"
+                style="font-size: 0.85rem; font-weight: 700; padding: 0.35rem 0.6rem;"
+              >
+                {{ sale.profit > 0 ? '+' : '' }}{{ sale.profit | number }} Ft
+                ({{ sale.profit_margin_percent | number:'1.1-1' }}%)
+              </span>
+            </td>
+            <td style="font-size: 0.85rem; color: #475569;">
+              <div *ngIf="sale.customer_name"><strong>{{ sale.customer_name }}</strong></div>
+              <div>{{ sale.note || '–' }}</div>
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              <!-- Red Danger Sztorno Button -->
+              <button
+                (click)="cancelSale(sale)"
+                class="btn btn-danger btn-sm"
+                title="Téves eladás visszavonása (készlet azonnali visszaállítása)"
+              >
+                <i class="fa-solid fa-ban"></i> Sztornó
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="report.sales.length === 0">
+            <td colspan="9" class="empty-state">
+              <i class="fa-solid fa-chart-pie empty-icon"></i>
+              <div>Még nem rögzített értékesítést a kiválasztott szűrőkkel.</div>
+              <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+                A raktáron lévő készülékeket az <strong>Raktárkészlet & Eladás</strong> menüpontban tudja eladni!
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

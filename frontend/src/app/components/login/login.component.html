@@ -1,0 +1,69 @@
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="brand-badge">
+        <i class="fa-solid fa-boxes-stacked"></i>
+      </div>
+      <h2>Prime Mobile Rendszer</h2>
+      <p class="subtitle">Készlet- és Számlanyilvántartó Belépés</p>
+    </div>
+
+    @if (errorMessage()) {
+      <div class="alert-error">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>{{ errorMessage() }}</span>
+      </div>
+    }
+
+    <form (ngSubmit)="onSubmit()" class="login-form">
+      <div class="form-group">
+        <label for="username">
+          <i class="fa-solid fa-user"></i>
+          Felhasználónév
+        </label>
+        <input
+          id="username"
+          type="text"
+          [(ngModel)]="username"
+          name="username"
+          placeholder="pl. admin"
+          required
+          autofocus
+          autocomplete="username"
+          class="form-control"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">
+          <i class="fa-solid fa-lock"></i>
+          Jelszó
+        </label>
+        <input
+          id="password"
+          type="password"
+          [(ngModel)]="password"
+          name="password"
+          placeholder="••••••••"
+          required
+          autocomplete="current-password"
+          class="form-control"
+        />
+      </div>
+
+      <button type="submit" [disabled]="isLoading()" class="btn-submit">
+        @if (isLoading()) {
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          <span>Bejelentkezés folyamatban...</span>
+        } @else {
+          <i class="fa-solid fa-right-to-bracket"></i>
+          <span>Bejelentkezés</span>
+        }
+      </button>
+    </form>
+
+    <div class="login-footer">
+      <span>Biztonságos belső kiszolgáló kapcsolat (Spring Security & JWT)</span>
+    </div>
+  </div>
+</div>

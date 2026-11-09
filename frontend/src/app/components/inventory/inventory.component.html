@@ -1,0 +1,204 @@
+<div class="app-container">
+  <!-- Metrics -->
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-icon blue"><i class="fa-solid fa-layer-group"></i></div>
+      <div>
+        <div class="metric-label">Összes tételsor</div>
+        <div class="metric-val">{{ items.length }} tétel</div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon green"><i class="fa-solid fa-mobile-screen-button"></i></div>
+      <div>
+        <div class="metric-label">Raktáron lévő</div>
+        <div class="metric-val">{{ inStockCount }} db</div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-icon amber"><i class="fa-solid fa-circle-check"></i></div>
+      <div>
+        <div class="metric-label">Eladott</div>
+        <div class="metric-val">{{ soldCount }} db</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card filter-card">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label><i class="fa-solid fa-filter"></i> Állapot:</label>
+        <select [(ngModel)]="statusFilter" (ngModelChange)="loadInventory()">
+          <option value="">Összes állapot</option>
+          <option value="IN_STOCK">Raktáron</option>
+          <option value="SOLD">Eladott</option>
+          <option value="RETURNED">Visszáru</option>
+          <option value="DAMAGED">Sérült</option>
+          <option value="RESERVED">Foglalt</option>
+        </select>
+      </div>
+      <div class="filter-group search-group">
+        <label><i class="fa-solid fa-magnifying-glass"></i> Keresés:</label>
+        <div class="input-with-icon">
+          <input type="text" placeholder="Terméknév, sorozatszám..." [(ngModel)]="searchQuery" (ngModelChange)="loadInventory()" />
+          <button *ngIf="searchQuery" (click)="searchQuery = ''; loadInventory()" class="clear-btn">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invoices -->
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-title">
+      <i class="fa-solid fa-file-invoice"></i>
+      <span>Számlák</span>
+      <span class="badge badge-gray" style="margin-left: auto;">{{ invoices.length }} db</span>
+    </div>
+    <div *ngIf="isLoadingInvoices" style="padding: 1.5rem; text-align: center; color: #64748b;">
+      <i class="fa-solid fa-circle-notch fa-spin"></i> Számlák betöltése...
+    </div>
+    <div *ngIf="!isLoadingInvoices" class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Számlaszám</th>
+            <th>Beszállító</th>
+            <th>Kelt</th>
+            <th>Összeg (bruttó)</th>
+            <th>Állapot</th>
+            <th>Tételek</th>
+            <th style="text-align:right;">Műveletek</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let inv of invoices">
+            <td><span class="badge badge-gray">{{ inv.invoiceNumber }}</span></td>
+            <td><strong>{{ inv.supplierName }}</strong></td>
+            <td>{{ inv.issueDate || '–' }}</td>
+            <td>{{ inv.totalGrossAmount ? (inv.totalGrossAmount | number:'1.0-0') + ' Ft' : '–' }}</td>
+            <td><span class="badge" [class.badge-green]="inv.status === 'ACTIVE'" [class.badge-gray]="inv.status !== 'ACTIVE'">{{ inv.status }}</span></td>
+            <td>{{ inv.itemsCount }} db</td>
+            <td style="text-align:right;">
+              <button class="btn btn-secondary btn-sm" (click)="viewInvoiceDetail(inv)" title="Részletek">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+              <button class="btn btn-danger btn-sm" (click)="cancelInvoice(inv)" title="Törlés" style="margin-left: 0.4rem;">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="invoices.length === 0">
+            <td colspan="7" class="empty-state">
+              <i class="fa-solid fa-file-circle-exclamation empty-icon"></i>
+              <div>Nincs rögzített számla.</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Invoice detail panel -->
+  <div *ngIf="selectedInvoice" class="card" style="margin-bottom: 1.5rem; border-left: 4px solid var(--primary);">
+    <div class="card-title">
+      <i class="fa-solid fa-file-lines"></i>
+      <span>{{ selectedInvoice.invoiceNumber }} – részletek</span>
+      <button (click)="clearInvoiceDetail()" class="btn btn-secondary btn-sm" style="margin-left: auto;">
+        <i class="fa-solid fa-xmark"></i> Bezárás
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Termék</th>
+            <th>ME</th>
+            <th>Eredeti menny.</th>
+            <th>Fennmaradó</th>
+            <th>Egységár nettó</th>
+            <th>ÁFA</th>
+            <th>Összesen bruttó</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let it of selectedInvoice.items" [class.row-dimmed]="it.fullyDeducted">
+            <td>{{ it.lineIndex }}</td>
+            <td><strong>{{ it.productName }}</strong></td>
+            <td>{{ it.unit }}</td>
+            <td style="text-align:center;">{{ it.initialQuantity }}</td>
+            <td style="text-align:center;">
+              <span [class.text-amber]="it.currentQuantity > 0" [class.text-green]="it.currentQuantity === 0">
+                {{ it.currentQuantity }}
+              </span>
+            </td>
+            <td>{{ it.unitPriceNet | number:'1.0-0' }} Ft</td>
+            <td>{{ it.vatRate }}</td>
+            <td>{{ it.totalGross | number:'1.0-0' }} Ft</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Inventory table -->
+  <div class="card">
+    <div class="card-title">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Raktárkészlet tételei</span>
+      <span class="badge badge-gray" style="margin-left: auto;">{{ items.length }} találat</span>
+    </div>
+    <div *ngIf="isLoading" style="padding: 2.5rem; text-align: center; color: #64748b;">
+      <i class="fa-solid fa-circle-notch fa-spin"></i> Készlettételek betöltése...
+    </div>
+    <div *ngIf="!isLoading" class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Termék</th>
+            <th>Sorozatszám</th>
+            <th>Adattörlő kód</th>
+            <th>Beker. ár (bruttó)</th>
+            <th>Eladási ár (bruttó)</th>
+            <th>Beérkezés</th>
+            <th>Állapot</th>
+            <th style="text-align:right;">Műveletek</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of items" [class.row-dimmed]="item.status !== 'IN_STOCK'">
+            <td><div class="product-title">{{ item.productName }}</div></td>
+            <td><span class="badge badge-gray" *ngIf="item.serialNumber">{{ item.serialNumber }}</span><span *ngIf="!item.serialNumber" style="color:#94a3b8;">–</span></td>
+            <td><span class="badge badge-blue" *ngIf="item.wipeCode">{{ item.wipeCode }}</span><span *ngIf="!item.wipeCode" style="color:#94a3b8;">–</span></td>
+            <td>{{ item.acquisitionGrossPrice ? (item.acquisitionGrossPrice | number:'1.0-0') + ' Ft' : '–' }}</td>
+            <td>{{ item.sellingPriceGross ? (item.sellingPriceGross | number:'1.0-0') + ' Ft' : '–' }}</td>
+            <td>{{ item.receivedAt ? (item.receivedAt | date:'yyyy.MM.dd') : '–' }}</td>
+            <td>
+              <span class="badge"
+                [class.badge-green]="item.status === 'IN_STOCK'"
+                [class.badge-amber]="item.status === 'RESERVED'"
+                [class.badge-red]="item.status === 'DAMAGED'"
+                [class.badge-gray]="item.status === 'SOLD' || item.status === 'RETURNED'">
+                {{ item.status }}
+              </span>
+            </td>
+            <td style="text-align:right;">
+              <button *ngIf="item.status === 'IN_STOCK'" class="btn btn-danger btn-sm" (click)="markDamaged(item)" title="Sérültnek jelöl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="items.length === 0">
+            <td colspan="8" class="empty-state">
+              <i class="fa-solid fa-box-open empty-icon"></i>
+              <div>Nem található tétel a megadott szűrők alapján.</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

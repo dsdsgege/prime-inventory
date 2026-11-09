@@ -1,0 +1,56 @@
+@if (authService.isAuthenticated()) {
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-boxes-stacked"></i>
+        </div>
+        <div>
+          <h1 class="brand-title">Prime Mobile Nyilvántartó</h1>
+          <span class="brand-subtitle">Számlázz.hu & Raktári Értékesítési Rendszer</span>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a routerLink="/stock" routerLinkActive="active" class="nav-item">
+          <i class="fa-solid fa-boxes-stacked"></i>
+          <span>Raktárkészlet & Eladás</span>
+        </a>
+        <a routerLink="/receiving" routerLinkActive="active" class="nav-item">
+          <i class="fa-solid fa-truck-ramp-box"></i>
+          <span>Számlák & Átvétel</span>
+        </a>
+        <a routerLink="/sales" routerLinkActive="active" class="nav-item">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Haszon Kimutatás</span>
+        </a>
+        <a routerLink="/upload" routerLinkActive="active" class="nav-item">
+          <i class="fa-solid fa-file-arrow-up"></i>
+          <span>Számla Feltöltés</span>
+        </a>
+        <a routerLink="/suppliers" routerLinkActive="active" class="nav-item">
+          <i class="fa-solid fa-building"></i>
+          <span>Beszállítók & Számlák</span>
+        </a>
+        <a routerLink="/logs" routerLinkActive="active" class="nav-item">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>Mozgásnapló</span>
+        </a>
+      </nav>
+
+      <div class="user-section">
+        <div class="user-badge" title="Bejelentkezett fiók">
+          <i class="fa-solid fa-circle-user"></i>
+          <span class="username">{{ authService.currentUser()?.fullName || authService.currentUser()?.username }}</span>
+          @if (authService.isAdmin()) {
+            <span class="role-tag">Admin</span>
+          }
+        </div>
+        <button (click)="logout()" class="btn-logout" title="Kijelentkezés">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span>Kilépés</span>
+        </button>
+      </div>
+    </div>
+  </header>
+}

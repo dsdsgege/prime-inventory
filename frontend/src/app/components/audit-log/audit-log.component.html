@@ -1,0 +1,113 @@
+<div class="app-container">
+  <div class="card">
+    <div class="card-title">
+      <i class="fa-solid fa-clock-rotate-left" style="color: var(--primary);"></i>
+      <span>Készletmozgások & Tranzakciós Audit Napló</span>
+      <span class="badge badge-gray" style="margin-left: auto;">{{ logs.length }} bejegyzés</span>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="log-filters">
+      <div class="filter-group">
+        <label><i class="fa-solid fa-filter"></i> Művelet típusa:</label>
+        <select [(ngModel)]="selectedAction" (ngModelChange)="loadLogs()">
+          <option value="">Összes művelet</option>
+          <option value="STOCK_RECEIVE">Átvétel raktárra (STOCK_RECEIVE)</option>
+          <option value="SALE">Értékesítés (SALE)</option>
+          <option value="INITIAL_IMPORT">Kezdeti Import (INITIAL_IMPORT)</option>
+          <option value="STOCK_RECEIVE_CANCEL">Átvétel visszavonása (STOCK_RECEIVE_CANCEL)</option>
+          <option value="SALE_CANCEL">Eladás törlése (SALE_CANCEL)</option>
+          <option value="DEDUCT">Mínuszolás (DEDUCT)</option>
+          <option value="RESTORE">Korrekció (RESTORE)</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-building"></i> Beszállító:</label>
+        <select [(ngModel)]="selectedSupplierId" (ngModelChange)="loadLogs()">
+          <option [ngValue]="null">Összes beszállító</option>
+          <option *ngFor="let s of suppliers" [ngValue]="s.id">{{ s.name }}</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div *ngIf="isLoading" style="padding: 2.5rem; text-align: center; color: #64748b;">
+      <i class="fa-solid fa-circle-notch fa-spin"></i> Naplóbejegyzések betöltése...
+    </div>
+
+    <div *ngIf="!isLoading" class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Időpont</th>
+            <th>Művelet</th>
+            <th>Beszállító</th>
+            <th>Számlaszám</th>
+            <th>Termék</th>
+            <th style="text-align: center;">Készletváltozás</th>
+            <th>Érintett adattörlő kód</th>
+            <th>Megjegyzés / Részletek</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let log of logs">
+            <td style="white-space: nowrap; font-size: 0.8rem; color: #64748b;">
+              {{ log.created_at | date:'yyyy.MM.dd HH:mm:ss' }}
+            </td>
+            <td>
+              <span *ngIf="log.action_type === 'STOCK_RECEIVE'" class="badge badge-success">
+                <i class="fa-solid fa-box-open"></i> Raktári Átvétel
+              </span>
+              <span *ngIf="log.action_type === 'SALE'" class="badge badge-primary">
+                <i class="fa-solid fa-cart-shopping"></i> Eladás
+              </span>
+              <span *ngIf="log.action_type === 'STOCK_RECEIVE_CANCEL'" class="badge badge-warning">
+                <i class="fa-solid fa-rotate-left"></i> Átvétel törölve
+              </span>
+              <span *ngIf="log.action_type === 'SALE_CANCEL'" class="badge badge-danger">
+                <i class="fa-solid fa-ban"></i> Eladás törölve
+              </span>
+              <span *ngIf="log.action_type === 'INITIAL_IMPORT'" class="badge badge-gray">
+                <i class="fa-solid fa-file-import"></i> Számla import
+              </span>
+              <span *ngIf="log.action_type === 'DEDUCT'" class="badge badge-warning">
+                <i class="fa-solid fa-arrow-down"></i> Mínuszolás
+              </span>
+              <span *ngIf="log.action_type === 'RESTORE'" class="badge badge-success">
+                <i class="fa-solid fa-rotate-left"></i> Korrekció
+              </span>
+            </td>
+            <td>{{ log.supplier_name }}</td>
+            <td>
+              <span class="badge badge-gray">{{ log.invoice_number }}</span>
+            </td>
+            <td>
+              <strong>{{ log.product_name }}</strong>
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+              <span class="change-tag" [class.negative]="log.quantity_changed < 0" [class.positive]="log.quantity_changed > 0">
+                {{ log.quantity_before }} db &rarr; {{ log.quantity_after }} db
+                (<strong>{{ log.quantity_changed > 0 ? '+' : '' }}{{ log.quantity_changed }}</strong>)
+              </span>
+            </td>
+            <td>
+              <span *ngIf="log.used_wipe_code" class="badge badge-code">
+                <i class="fa-solid fa-shield-halved"></i> {{ log.used_wipe_code }}
+              </span>
+              <span *ngIf="!log.used_wipe_code" class="text-muted" style="font-size: 0.8rem;">–</span>
+            </td>
+            <td style="font-size: 0.85rem; color: #475569;">
+              {{ log.note || '–' }}
+            </td>
+          </tr>
+          <tr *ngIf="logs.length === 0">
+            <td colspan="8" style="text-align: center; padding: 2.5rem; color: #64748b;">
+              Nem található tranzakciós naplóbejegyzés.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

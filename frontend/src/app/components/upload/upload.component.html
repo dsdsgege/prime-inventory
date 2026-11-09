@@ -1,0 +1,102 @@
+<div class="app-container">
+  <div class="card upload-card">
+    <div class="card-title">
+      <i class="fa-solid fa-file-arrow-up" style="color: var(--primary);"></i>
+      <span>Számlázz.hu PDF Számla Feltöltése</span>
+    </div>
+
+    <p class="upload-desc">
+      Húzd ide a Számlázz.hu által kiállított beszerzési PDF számlát, vagy válaszd ki a fájlböngészőből.
+      A rendszer automatikusan kinyeri a beszállítót, a tételeket, az árakat és az NMHH adattörlő kódokat,
+      valamint automatikusan kiszűri a szállítási és csomagküldési tételeket.
+    </p>
+
+    <!-- Drag & Drop Zone -->
+    <div
+      class="dropzone"
+      [class.drag-over]="isDragging"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+      (click)="fileInput.click()"
+    >
+      <input
+        #fileInput
+        type="file"
+        accept=".pdf"
+        (change)="onFileSelected($event)"
+        style="display: none;"
+      />
+
+      <div *ngIf="!isUploading" class="dropzone-content">
+        <div class="dropzone-icon">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+        </div>
+        <div class="dropzone-title">Kattints ide a PDF tallózásához, vagy húzd ide a fájlt</div>
+        <div class="dropzone-sub">Csak .pdf fájlok támogatottak (Számlázz.hu sablon)</div>
+      </div>
+
+      <div *ngIf="isUploading" class="dropzone-content">
+        <i class="fa-solid fa-circle-notch fa-spin dropzone-spinner"></i>
+        <div class="dropzone-title">Számla feldolgozása folyamatban...</div>
+        <div class="dropzone-sub">Kérlek várj, amíg az adatok bekerülnek a helyi adatbázisba</div>
+      </div>
+    </div>
+
+    <!-- Success Result Banner -->
+    <div *ngIf="uploadResult" class="result-box success-box">
+      <div class="result-header">
+        <i class="fa-solid fa-circle-check"></i>
+        <strong>Sikeres feldolgozás!</strong>
+      </div>
+      <div class="result-message">{{ uploadResult.message }}</div>
+
+      <div class="result-details">
+        <div class="detail-badge">
+          <i class="fa-solid fa-building"></i>
+          <span>Beszállító: <strong>{{ uploadResult.supplier_name }}</strong></span>
+        </div>
+        <div class="detail-badge">
+          <i class="fa-solid fa-file-invoice"></i>
+          <span>Számlaszám: <strong>{{ uploadResult.invoice_number }}</strong></span>
+        </div>
+        <div class="detail-badge">
+          <i class="fa-solid fa-boxes-stacked"></i>
+          <span>Tételek száma: <strong>{{ uploadResult.item_count }} tétel</strong></span>
+        </div>
+        <div class="detail-badge">
+          <i class="fa-solid fa-mobile-screen-button"></i>
+          <span>Készülékek darabszáma: <strong>{{ uploadResult.unit_count }} db</strong></span>
+        </div>
+      </div>
+
+      <div *ngIf="uploadResult.filtered_services && uploadResult.filtered_services.length > 0" class="filter-note">
+        <i class="fa-solid fa-filter"></i>
+        <span>Kiszűrt nem fizikai tételek: <em>{{ uploadResult.filtered_services.join(', ') }}</em></span>
+      </div>
+
+      <div class="result-actions">
+        <button (click)="goToInventory()" class="btn btn-primary">
+          <i class="fa-solid fa-arrow-right"></i> Ugrás a készlethez & Mínuszoláshoz
+        </button>
+        <button (click)="uploadResult = null" class="btn btn-secondary">
+          Újabb számla feltöltése
+        </button>
+      </div>
+    </div>
+
+    <!-- Error Result Banner -->
+    <div *ngIf="errorMessage" class="result-box error-box">
+      <div class="result-header">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <strong>Hiba a feltöltés során!</strong>
+      </div>
+      <div class="result-message">{{ errorMessage }}</div>
+      <div class="result-actions">
+        <button (click)="errorMessage = null" class="btn btn-secondary">
+          Próbáld újra
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
