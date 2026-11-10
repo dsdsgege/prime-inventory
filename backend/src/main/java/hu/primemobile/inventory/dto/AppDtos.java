@@ -1,6 +1,7 @@
 package hu.primemobile.inventory.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -103,6 +104,8 @@ public class AppDtos {
         private int itemCount;
         @JsonProperty("unit_count")
         private int unitCount;
+        @JsonProperty("expense_only")
+        private boolean expenseOnly;
         @JsonProperty("filtered_services")
         @Builder.Default
         private List<String> filteredServices = new ArrayList<>();
@@ -153,6 +156,10 @@ public class AppDtos {
         private String status;
         @JsonProperty("received_at")
         private Instant receivedAt;
+        @JsonProperty("expected_margin_percent")
+        private Double expectedMarginPercent;
+        @JsonProperty("expected_sale_price")
+        private Long expectedSalePrice;
         @JsonProperty("is_fully_deducted")
         private boolean isFullyDeducted;
         @JsonProperty("wipe_codes")
@@ -173,6 +180,10 @@ public class AppDtos {
     public static class ReceiveRequest {
         @Min(1)
         private int quantity = 1;
+        @NotNull(message = "A várható eladási árrés (%) megadása kötelező!")
+        @DecimalMin(value = "0.01", message = "A várható eladási árrésnek 0%-nál nagyobbnak kell lennie!")
+        @JsonProperty("expected_margin_percent")
+        private Double expectedMarginPercent;
         @JsonProperty("confirmed_wipe_codes")
         private List<String> confirmedWipeCodes;
         @JsonProperty("received_at")
@@ -189,6 +200,10 @@ public class AppDtos {
         private Long itemId;
         @Min(1)
         private int quantity = 1;
+        @NotNull(message = "A várható eladási árrés (%) megadása kötelező!")
+        @DecimalMin(value = "0.01", message = "A várható eladási árrésnek 0%-nál nagyobbnak kell lennie!")
+        @JsonProperty("expected_margin_percent")
+        private Double expectedMarginPercent;
         @JsonProperty("confirmed_wipe_codes")
         private List<String> confirmedWipeCodes;
         private String note;

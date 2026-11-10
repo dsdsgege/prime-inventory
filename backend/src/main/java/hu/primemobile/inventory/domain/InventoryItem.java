@@ -93,6 +93,12 @@ public class InventoryItem {
     @Column(name = "received_at")
     private Instant receivedAt;
 
+    @Column(name = "expected_margin_percent")
+    private Double expectedMarginPercent;
+
+    @Column(name = "expected_sale_price")
+    private Long expectedSalePrice;
+
     @Column(name = "is_fully_deducted", nullable = false)
     @Builder.Default
     private boolean fullyDeducted = false;

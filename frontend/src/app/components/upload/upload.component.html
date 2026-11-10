@@ -2,11 +2,11 @@
   <div class="card upload-card">
     <div class="card-title">
       <i class="fa-solid fa-file-arrow-up" style="color: var(--primary);"></i>
-      <span>Számlázz.hu PDF Számla Feltöltése</span>
+      <span>PDF Számla Feltöltése</span>
     </div>
 
     <p class="upload-desc">
-      Húzd ide a Számlázz.hu által kiállított beszerzési PDF számlát, vagy válaszd ki a fájlböngészőből.
+      Húzd ide a kiállított beszerzési PDF számlát (Számlázz.hu, Billingo, JMStock / QrSzla), vagy válaszd ki a fájlböngészőből.
       A rendszer automatikusan kinyeri a beszállítót, a tételeket, az árakat és az NMHH adattörlő kódokat,
       valamint automatikusan kiszűri a szállítási és csomagküldési tételeket.
     </p>
@@ -33,7 +33,7 @@
           <i class="fa-solid fa-cloud-arrow-up"></i>
         </div>
         <div class="dropzone-title">Kattints ide a PDF tallózásához, vagy húzd ide a fájlt</div>
-        <div class="dropzone-sub">Csak .pdf fájlok támogatottak (Számlázz.hu sablon)</div>
+        <div class="dropzone-sub">Csak .pdf fájlok támogatottak (Számlázz.hu, Billingo, JMStock/QrSzla sablonok)</div>
       </div>
 
       <div *ngIf="isUploading" class="dropzone-content">
@@ -43,41 +43,44 @@
       </div>
     </div>
 
-    <!-- Success Result Banner -->
-    <div *ngIf="uploadResult" class="result-box success-box">
+    <!-- Success / Expense-Only Result Banner -->
+    <div *ngIf="uploadResult" class="result-box" [ngClass]="uploadResult.expense_only ? 'warning-box' : 'success-box'">
       <div class="result-header">
-        <i class="fa-solid fa-circle-check"></i>
-        <strong>Sikeres feldolgozás!</strong>
+        <i class="fa-solid" [ngClass]="uploadResult.expense_only ? 'fa-triangle-exclamation' : 'fa-circle-check'"></i>
+        <strong>{{ uploadResult.expense_only ? 'Költségszámla – Nem került raktárkészletbe' : 'Sikeres feldolgozás!' }}</strong>
       </div>
       <div class="result-message">{{ uploadResult.message }}</div>
 
       <div class="result-details">
-        <div class="detail-badge">
+        <div class="detail-badge" [class.warning-badge]="uploadResult.expense_only">
           <i class="fa-solid fa-building"></i>
           <span>Beszállító: <strong>{{ uploadResult.supplier_name }}</strong></span>
         </div>
-        <div class="detail-badge">
+        <div class="detail-badge" [class.warning-badge]="uploadResult.expense_only">
           <i class="fa-solid fa-file-invoice"></i>
           <span>Számlaszám: <strong>{{ uploadResult.invoice_number }}</strong></span>
         </div>
-        <div class="detail-badge">
+        <div class="detail-badge" [class.warning-badge]="uploadResult.expense_only">
           <i class="fa-solid fa-boxes-stacked"></i>
-          <span>Tételek száma: <strong>{{ uploadResult.item_count }} tétel</strong></span>
+          <span>Raktári tételek: <strong>{{ uploadResult.item_count }} tétel</strong></span>
         </div>
-        <div class="detail-badge">
+        <div class="detail-badge" [class.warning-badge]="uploadResult.expense_only">
           <i class="fa-solid fa-mobile-screen-button"></i>
-          <span>Készülékek darabszáma: <strong>{{ uploadResult.unit_count }} db</strong></span>
+          <span>Készülékek / alkatrészek: <strong>{{ uploadResult.unit_count }} db</strong></span>
         </div>
       </div>
 
-      <div *ngIf="uploadResult.filtered_services && uploadResult.filtered_services.length > 0" class="filter-note">
+      <div *ngIf="uploadResult.filtered_services && uploadResult.filtered_services.length > 0" class="filter-note" [class.warning-note]="uploadResult.expense_only">
         <i class="fa-solid fa-filter"></i>
-        <span>Kiszűrt nem fizikai tételek: <em>{{ uploadResult.filtered_services.join(', ') }}</em></span>
+        <span>Kiszűrt költség / szolgáltatás tételek ({{ uploadResult.filtered_services.length }} db): <em>{{ uploadResult.filtered_services.join('; ') }}</em></span>
       </div>
 
       <div class="result-actions">
-        <button (click)="goToInventory()" class="btn btn-primary">
+        <button *ngIf="!uploadResult.expense_only" (click)="goToInventory()" class="btn btn-primary">
           <i class="fa-solid fa-arrow-right"></i> Ugrás az Átvételhez (Számlák & Átvétel)
+        </button>
+        <button *ngIf="uploadResult.filtered_services && uploadResult.filtered_services.length > 0" (click)="showExpenseModal = true" class="btn btn-secondary">
+          <i class="fa-solid fa-receipt"></i> Kiszűrt költségek részletei
         </button>
         <button (click)="uploadResult = null" class="btn btn-secondary">
           Újabb számla feltöltése
@@ -94,7 +97,69 @@
       <div class="result-message">{{ errorMessage }}</div>
       <div class="result-actions">
         <button (click)="errorMessage = null" class="btn btn-secondary">
-          Próbáld újra
+          Rendben
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expense / Service Warning Modal -->
+  <div *ngIf="showExpenseModal && uploadResult" class="modal-backdrop" (click)="closeExpenseModal()">
+    <div class="modal-dialog expense-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header expense-modal-header">
+        <div class="modal-title-group">
+          <i class="fa-solid fa-file-invoice-dollar expense-modal-icon"></i>
+          <div>
+            <h3>Nem raktári költségek / szolgáltatások észlelve</h3>
+            <span class="modal-subtitle">{{ uploadResult.supplier_name }} – {{ uploadResult.invoice_number }}</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" (click)="closeExpenseModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p *ngIf="uploadResult.expense_only" class="expense-explanation">
+          Ez a számla <strong>kizárólag általános költségeket vagy szolgáltatásokat</strong> tartalmaz, fizikai árukészletet nem.
+          Mivel a rendszer raktárkészlet-nyilvántartó, <strong>ez a számla nem került mentésre az adatbázisba</strong>.
+        </p>
+        <p *ngIf="!uploadResult.expense_only" class="expense-explanation">
+          A számlán szereplő fizikai termékek ({{ uploadResult.item_count }} tétel, {{ uploadResult.unit_count }} db) sikeresen bekerültek a rendszerbe,
+          azonban az alábbi <strong>költség / szolgáltatás sorok nem kerültek mentésre raktári készletként</strong>:
+        </p>
+
+        <div class="expense-list-box">
+          <div class="expense-list-title">
+            <i class="fa-solid fa-ban"></i>
+            <span>Adatbázisból kihagyott költségtételek ({{ uploadResult.filtered_services.length }} db):</span>
+          </div>
+          <ul class="expense-items-list">
+            <li *ngFor="let srv of uploadResult.filtered_services">
+              <i class="fa-solid fa-receipt"></i>
+              <span>{{ srv }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="profit-reminder-banner">
+          <i class="fa-solid fa-calculator"></i>
+          <div>
+            <strong>Ne felejtsd el a profitkalkulációnál!</strong>
+            <p>
+              Ezek a kiadások (pl. szállítási díj, utánvét, weboldal üzemeltetés, bérleti díj, könyvelés) nem csökkentik automatikusan
+              az egyes készülékek árrését a rendszerben. A valós nettó üzleti eredményed kiszámításakor mindenképp számold bele ezeket a költségeket!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button *ngIf="!uploadResult.expense_only" (click)="closeExpenseModal(); goToInventory()" class="btn btn-primary">
+          <i class="fa-solid fa-arrow-right"></i> Értem, tovább az Átvételhez
+        </button>
+        <button (click)="closeExpenseModal()" class="btn btn-secondary">
+          <i class="fa-solid fa-check"></i> Tudomásul vettem
         </button>
       </div>
     </div>

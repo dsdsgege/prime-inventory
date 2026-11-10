@@ -63,6 +63,8 @@ export interface InventoryItem {
   total_gross: number;
   status: string;
   received_at?: string | null;
+  expected_margin_percent?: number | null;
+  expected_sale_price?: number | null;
   is_fully_deducted: boolean;
   wipe_codes: string[];
   supplier_name?: string;
@@ -71,6 +73,7 @@ export interface InventoryItem {
 
 export interface ReceivePayload {
   quantity: number;
+  expected_margin_percent: number;
   confirmed_wipe_codes?: string[] | null;
   received_at?: string | null;
   note?: string | null;
@@ -79,6 +82,7 @@ export interface ReceivePayload {
 export interface BatchReceiveItemEntry {
   item_id: number;
   quantity: number;
+  expected_margin_percent: number;
   confirmed_wipe_codes?: string[] | null;
   note?: string | null;
 }
@@ -187,6 +191,7 @@ export interface BatchSalesImportResult {
 
 export interface DeductPayload {
   quantity: number;
+  expected_margin_percent?: number;
   used_wipe_code?: string | null;
   note?: string | null;
 }
@@ -215,11 +220,12 @@ export interface TransactionLog {
 
 export interface UploadSuccessResponse {
   message: string;
-  invoice_id: number;
+  invoice_id: number | null;
   invoice_number: string;
   supplier_name: string;
   item_count: number;
   unit_count: number;
+  expense_only?: boolean;
   filtered_services: string[];
 }
 
@@ -242,3 +248,5 @@ export interface User {
   role: string;
   active?: boolean;
 }
+
+export type UserDto = User;

@@ -142,6 +142,34 @@ public class InvoiceService {
         }
 
         String invNum = parsed.getInvoice().getInvoiceNumber().trim();
+        List<ParserDto.ParsedInvoiceItem> parsedItems = parsed.getItems() != null ? parsed.getItems() : List.of();
+        List<String> filteredServices = parsed.getFilteredServices() != null ? parsed.getFilteredServices() : List.of();
+        String parsedSupplierName = (parsed.getSupplier() != null && parsed.getSupplier().getName() != null)
+                ? parsed.getSupplier().getName().trim()
+                : "Ismeretlen Beszállító";
+
+        // If the invoice contains ONLY expenses/services (0 physical inventory items), do NOT save to DB!
+        if (parsedItems.isEmpty() && !filteredServices.isEmpty()) {
+            String expenseMsg = String.format(
+                    "A(z) %s (%s) számla kizárólag általános költség- vagy szolgáltatási tételeket tartalmaz (%d tétel), " +
+                    "fizikai raktári terméket nem, ezért nem került rögzítésre a készletnyilvántartó adatbázisban.",
+                    invNum, parsedSupplierName, filteredServices.size()
+            );
+            log.info("Expense-only invoice {} ({}) skipped DB persistence: {} expense rows detected",
+                    invNum, parsedSupplierName, filteredServices.size());
+
+            return AppDtos.UploadSuccessResponse.builder()
+                    .message(expenseMsg)
+                    .invoiceId(null)
+                    .invoiceNumber(invNum)
+                    .supplierName(parsedSupplierName)
+                    .itemCount(0)
+                    .unitCount(0)
+                    .expenseOnly(true)
+                    .filteredServices(filteredServices)
+                    .build();
+        }
+
         if (invoiceRepository.existsByInvoiceNumber(invNum)) {
             log.warn("Duplicate invoice upload rejected: {}", invNum);
             throw new IllegalStateException("A(z) '" + invNum + "' sorszámú számla már korábban rögzítésre került!");
@@ -173,7 +201,6 @@ public class InvoiceService {
 
         // 3. Save InventoryItems & INITIAL_IMPORT TransactionLogs
         int totalUnits = 0;
-        List<ParserDto.ParsedInvoiceItem> parsedItems = parsed.getItems() != null ? parsed.getItems() : List.of();
 
         for (ParserDto.ParsedInvoiceItem itemData : parsedItems) {
             int qty = itemData.getInitialQuantity() != null && itemData.getInitialQuantity() > 0
@@ -228,10 +255,9 @@ public class InvoiceService {
             transactionLogRepository.save(txLog);
         }
 
-        List<String> filteredServices = parsed.getFilteredServices() != null ? parsed.getFilteredServices() : List.of();
         String filterMsg = "";
         if (!filteredServices.isEmpty()) {
-            filterMsg = String.format(" (%d szolgáltatás tétel kiszűrve: %s)",
+            filterMsg = String.format(" (%d költség/szolgáltatás tétel kiszűrve: %s)",
                     filteredServices.size(), String.join(", ", filteredServices));
         }
 
@@ -254,6 +280,7 @@ public class InvoiceService {
                 .supplierName(supplier.getName())
                 .itemCount(parsedItems.size())
                 .unitCount(totalUnits)
+                .expenseOnly(false)
                 .filteredServices(filteredServices)
                 .build();
     }

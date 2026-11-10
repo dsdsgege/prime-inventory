@@ -218,12 +218,13 @@ export class SalesComponent implements OnInit {
       date_to: this.dateTo || null,
       search: this.searchQuery ? this.searchQuery.trim() : null
     }).subscribe({
-      next: (tsv) => {
-        const blob = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8;' });
+      next: (csv) => {
+        const csvWithBom = csv.startsWith('\uFEFF') ? csv : '\uFEFF' + csv;
+        const blob = new Blob([csvWithBom], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `haszon_kimutatas_${this.dateFrom || 'mind'}_${this.dateTo || 'mind'}.tsv`;
+        a.download = `haszon_kimutatas_${this.dateFrom || 'mind'}_${this.dateTo || 'mind'}.csv`;
         a.click();
         URL.revokeObjectURL(url);
         this.isExporting = false;

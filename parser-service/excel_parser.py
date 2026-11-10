@@ -201,15 +201,15 @@ def parse_excel_sheet(file_source: Union[str, bytes, io.BytesIO], filename: str 
 
 
 def parse_csv_stream(file_source: Union[str, bytes, io.BytesIO]) -> Dict[str, Any]:
-    """Helper to parse tab-separated or comma-separated sales order text/CSV."""
+    """Helper to parse tab-separated, semicolon-separated, or comma-separated sales order text/CSV."""
     if isinstance(file_source, bytes):
-        text_content = file_source.decode("utf-8", errors="replace")
+        text_content = file_source.decode("utf-8-sig", errors="replace")
     elif isinstance(file_source, io.BytesIO):
-        text_content = file_source.getvalue().decode("utf-8", errors="replace")
-    elif isinstance(file_source, str) and ("\n" in file_source or "\t" in file_source or "," in file_source):
-        text_content = file_source
+        text_content = file_source.getvalue().decode("utf-8-sig", errors="replace")
+    elif isinstance(file_source, str) and ("\n" in file_source or "\t" in file_source or "," in file_source or ";" in file_source):
+        text_content = file_source.lstrip("\ufeff")
     else:
-        with open(file_source, "r", encoding="utf-8", errors="replace") as f:
+        with open(file_source, "r", encoding="utf-8-sig", errors="replace") as f:
             text_content = f.read()
 
     lines = [l for l in text_content.splitlines() if l.strip()]

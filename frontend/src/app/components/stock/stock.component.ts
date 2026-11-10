@@ -218,12 +218,23 @@ export class StockComponent implements OnInit {
   openSaleModal(item: InventoryItem): void {
     this.activeItem = item;
     this.saleQuantity = 1;
-    const markupPrice = Math.round(item.unit_price_gross * 1.15 / 1000) * 1000;
-    this.salePrice = markupPrice;
+    const defaultUnitSalePrice = item.expected_sale_price && item.expected_sale_price > 0
+      ? item.expected_sale_price
+      : Math.round(item.unit_price_gross * 1.15 / 1000) * 1000;
+    this.salePrice = defaultUnitSalePrice;
     this.selectedWipeCode = item.wipe_codes?.length ? item.wipe_codes[0] : null;
     this.customerName = '';
     this.saleNote = '';
     this.showSaleModal = true;
+    this.cdr.markForCheck();
+  }
+
+  onSaleQuantityChange(): void {
+    if (!this.activeItem) return;
+    const unitSale = this.activeItem.expected_sale_price && this.activeItem.expected_sale_price > 0
+      ? this.activeItem.expected_sale_price
+      : Math.round(this.activeItem.unit_price_gross * 1.15 / 1000) * 1000;
+    this.salePrice = unitSale * Math.max(1, this.saleQuantity || 1);
     this.cdr.markForCheck();
   }
 
@@ -306,7 +317,9 @@ export class StockComponent implements OnInit {
     this.batchSaleRows = selected.map(it => ({
       item: it,
       quantity: 1,
-      salePrice: Math.round(it.unit_price_gross * 1.15 / 1000) * 1000,
+      salePrice: it.expected_sale_price && it.expected_sale_price > 0
+        ? it.expected_sale_price
+        : Math.round(it.unit_price_gross * 1.15 / 1000) * 1000,
       selectedWipeCode: it.wipe_codes?.length ? it.wipe_codes[0] : null
     }));
     this.batchCustomerName = '';

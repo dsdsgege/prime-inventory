@@ -22,6 +22,7 @@ export class UploadComponent {
   isUploading = false;
   uploadResult: UploadSuccessResponse | null = null;
   errorMessage: string | null = null;
+  showExpenseModal = false;
 
   onDragOver(event: DragEvent): void {
     event.preventDefault();
@@ -64,21 +65,34 @@ export class UploadComponent {
     this.isUploading = true;
     this.errorMessage = null;
     this.uploadResult = null;
+    this.showExpenseModal = false;
 
     this.api.uploadInvoice(file).subscribe({
       next: (res) => {
         this.isUploading = false;
         this.uploadResult = res;
-        this.notificationService.success(res.message, 'Számla sikeresen rögzítve');
+        if (res.filtered_services && res.filtered_services.length > 0) {
+          this.showExpenseModal = true;
+        }
+        if (res.expense_only) {
+          this.notificationService.warning(res.message, 'Költségszámla észlelve (nem raktári)');
+        } else {
+          this.notificationService.success(res.message, 'Számla sikeresen rögzítve');
+        }
         this.cdr.markForCheck();
       },
       error: (err) => {
         this.isUploading = false;
         const detailMsg = err.error?.detail || err.error?.message || 'Hiba történt a fájl feltöltése és feldolgozása közben.';
         this.errorMessage = detailMsg;
+        this.notificationService.error(detailMsg, 'Sikertelen számlafeldolgozás');
         this.cdr.markForCheck();
       }
     });
+  }
+
+  closeExpenseModal(): void {
+    this.showExpenseModal = false;
   }
 
   goToInventory(): void {

@@ -127,6 +127,10 @@
               Beszerzési ár<br>
               <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(Bruttó / Nettó)</span>
             </th>
+            <th style="white-space: nowrap; line-height: 1.2;">
+              Várható eladási ár<br>
+              <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(Tervezett árrés)</span>
+            </th>
             <th>Beérkezés ideje</th>
             <th style="text-align: center;">Készletállapot</th>
             <th style="text-align: right;">Művelet</th>
@@ -179,6 +183,22 @@
                 {{ item.unit_price_net | number }} Ft <span class="price-sub">nettó</span>
               </div>
             </td>
+            <td style="white-space: nowrap;">
+              <ng-container *ngIf="item.expected_sale_price; else noExpectedPrice">
+                <div>
+                  <strong style="color: #047857;">{{ item.expected_sale_price | number }} Ft</strong>
+                  <span class="badge badge-success" style="margin-left: 0.35rem; font-size: 0.7rem; padding: 0.15rem 0.4rem;">
+                    +{{ item.expected_margin_percent }}%
+                  </span>
+                </div>
+                <div class="text-muted" style="font-size: 0.76rem; color: #059669;">
+                  Célhaszon: +{{ (item.expected_sale_price - item.unit_price_gross) | number }} Ft/db
+                </div>
+              </ng-container>
+              <ng-template #noExpectedPrice>
+                <span class="text-muted" style="font-size: 0.8rem;">–</span>
+              </ng-template>
+            </td>
             <td style="font-size: 0.85rem; color: #475569; white-space: nowrap;">
               {{ item.received_at ? (item.received_at | date:'yyyy.MM.dd HH:mm') : '–' }}
             </td>
@@ -208,7 +228,7 @@
             </td>
           </tr>
           <tr *ngIf="items.length === 0">
-            <td colspan="9" class="empty-state">
+            <td colspan="10" class="empty-state">
               <i class="fa-solid fa-box-open empty-icon"></i>
               <div>Nem található fizikailag raktáron lévő készülék.</div>
               <div style="margin-top: 0.5rem; font-size: 0.85rem;">
@@ -255,8 +275,11 @@
             <span>Számla: <strong>{{ activeItem.invoice_number }}</strong></span> | 
             <span>Készleten: <strong>{{ activeItem.current_quantity }} {{ activeItem.unit }}</strong></span>
           </div>
-          <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #1e293b;">
-            Beszerzési bruttó egységár: <strong>{{ activeItem.unit_price_gross | number }} Ft</strong>
+          <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #1e293b; display: flex; flex-wrap: wrap; gap: 1rem;">
+            <span>Beszerzési bruttó egységár: <strong>{{ activeItem.unit_price_gross | number }} Ft</strong></span>
+            <span *ngIf="activeItem.expected_sale_price" style="color: #047857;">
+              Várható eladási célár (+{{ activeItem.expected_margin_percent }}%): <strong>{{ activeItem.expected_sale_price | number }} Ft/db</strong>
+            </span>
           </div>
         </div>
 
@@ -268,6 +291,7 @@
               min="1"
               [max]="activeItem.current_quantity"
               [(ngModel)]="saleQuantity"
+              (ngModelChange)="onSaleQuantityChange()"
               class="full-width"
             />
           </div>

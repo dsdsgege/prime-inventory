@@ -293,6 +293,7 @@ export class ApiService {
   deductItem(itemId: number, payload: DeductPayload): Observable<any> {
     return this.receiveItem(itemId, {
       quantity: payload.quantity,
+      expected_margin_percent: payload.expected_margin_percent ?? 15,
       confirmed_wipe_codes: payload.used_wipe_code ? [payload.used_wipe_code] : undefined,
       note: payload.note
     });

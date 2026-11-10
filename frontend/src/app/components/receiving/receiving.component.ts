@@ -16,6 +16,7 @@ import {
 export interface BatchReceiveRow {
   item: InventoryItem;
   quantity: number;
+  expectedMarginPercent: number | null;
   selectedWipeCode: string | null;
 }
 
@@ -51,10 +52,14 @@ export class ReceivingComponent implements OnInit {
   // Selection for Batch Operations
   selectedItemIds = new Set<number>();
 
+  // Quick Percentage Presets for Expected Selling Price
+  readonly marginPresets: number[] = [10, 15, 20, 25, 30, 40];
+
   // Single Receive Modal
   showReceiveModal: boolean = false;
   activeItem: InventoryItem | null = null;
   receiveQuantity: number = 1;
+  expectedMarginPercent: number | null = null;
   selectedWipeCode: string | null = null;
   receiveNote: string = '';
   isSubmitting: boolean = false;
@@ -62,6 +67,7 @@ export class ReceivingComponent implements OnInit {
   // Batch Receive Modal
   showBatchReceiveModal: boolean = false;
   batchRows: BatchReceiveRow[] = [];
+  batchPresetMargin: number | null = null;
   batchNote: string = '';
 
   // Codes View Modal
@@ -221,6 +227,9 @@ export class ReceivingComponent implements OnInit {
   openReceiveModal(item: InventoryItem): void {
     this.activeItem = item;
     this.receiveQuantity = item.pending_quantity;
+    this.expectedMarginPercent = item.expected_margin_percent && item.expected_margin_percent > 0
+      ? item.expected_margin_percent
+      : null;
     this.selectedWipeCode = null;
     this.receiveNote = '';
     this.showReceiveModal = true;
@@ -230,7 +239,27 @@ export class ReceivingComponent implements OnInit {
   closeReceiveModal(): void {
     this.showReceiveModal = false;
     this.activeItem = null;
+    this.expectedMarginPercent = null;
     this.cdr.markForCheck();
+  }
+
+  setExpectedMargin(pct: number): void {
+    this.expectedMarginPercent = pct;
+    this.cdr.markForCheck();
+  }
+
+  get isSingleMarginValid(): boolean {
+    return this.expectedMarginPercent !== null && !isNaN(this.expectedMarginPercent) && this.expectedMarginPercent > 0;
+  }
+
+  get calculatedExpectedUnitPrice(): number {
+    if (!this.activeItem || !this.isSingleMarginValid || !this.expectedMarginPercent) return 0;
+    return Math.round((this.activeItem.unit_price_gross || 0) * (1 + this.expectedMarginPercent / 100));
+  }
+
+  get calculatedExpectedUnitProfit(): number {
+    if (!this.activeItem || !this.isSingleMarginValid) return 0;
+    return this.calculatedExpectedUnitPrice - (this.activeItem.unit_price_gross || 0);
   }
 
   viewAllCodes(item: InventoryItem): void {
@@ -252,11 +281,16 @@ export class ReceivingComponent implements OnInit {
 
   submitReceive(): void {
     if (!this.activeItem) return;
+    if (!this.isSingleMarginValid || !this.expectedMarginPercent) {
+      this.notificationService.warning('Kérjük, adja meg a várható eladási árrést (%-ban) az átvételhez!');
+      return;
+    }
     this.isSubmitting = true;
     this.cdr.markForCheck();
 
     const payload: ReceivePayload = {
       quantity: this.receiveQuantity,
+      expected_margin_percent: this.expectedMarginPercent,
       confirmed_wipe_codes: this.selectedWipeCode ? [this.selectedWipeCode] : undefined,
       note: this.receiveNote ? this.receiveNote.trim() : null
     };
@@ -264,7 +298,7 @@ export class ReceivingComponent implements OnInit {
     this.api.receiveItem(this.activeItem.id, payload).subscribe({
       next: (res) => {
         this.notificationService.success(
-          `Átvétel sikeres: ${this.activeItem?.product_name} (+${this.receiveQuantity} db raktárra). Raktárkészlet: ${res.current_quantity} db.`,
+          `Átvétel sikeres: ${this.activeItem?.product_name} (+${this.receiveQuantity} db, várható ár: ${this.calculatedExpectedUnitPrice.toLocaleString()} Ft/db).`,
           'Raktárra beérkezett'
         );
         this.closeReceiveModal();
@@ -313,9 +347,13 @@ export class ReceivingComponent implements OnInit {
       this.notificationService.warning('A kijelölt tételek között nincs átvételre váró termék.');
       return;
     }
+    this.batchPresetMargin = null;
     this.batchRows = pending.map(it => ({
       item: it,
       quantity: it.pending_quantity,
+      expectedMarginPercent: it.expected_margin_percent && it.expected_margin_percent > 0
+        ? it.expected_margin_percent
+        : null,
       selectedWipeCode: null
     }));
     this.batchNote = '';
@@ -326,7 +364,38 @@ export class ReceivingComponent implements OnInit {
   closeBatchReceiveModal(): void {
     this.showBatchReceiveModal = false;
     this.batchRows = [];
+    this.batchPresetMargin = null;
     this.cdr.markForCheck();
+  }
+
+  applyBatchPresetMargin(pct: number): void {
+    this.batchPresetMargin = pct;
+    this.batchRows.forEach(r => {
+      r.expectedMarginPercent = pct;
+    });
+    this.cdr.markForCheck();
+  }
+
+  setRowMargin(row: BatchReceiveRow, pct: number): void {
+    row.expectedMarginPercent = pct;
+    this.cdr.markForCheck();
+  }
+
+  calcRowExpectedUnitPrice(row: BatchReceiveRow): number {
+    if (!row.expectedMarginPercent || row.expectedMarginPercent <= 0) return 0;
+    return Math.round((row.item.unit_price_gross || 0) * (1 + row.expectedMarginPercent / 100));
+  }
+
+  calcRowExpectedUnitProfit(row: BatchReceiveRow): number {
+    if (!row.expectedMarginPercent || row.expectedMarginPercent <= 0) return 0;
+    return this.calcRowExpectedUnitPrice(row) - (row.item.unit_price_gross || 0);
+  }
+
+  get isBatchMarginValid(): boolean {
+    const activeRows = this.batchRows.filter(r => r.quantity > 0);
+    return activeRows.length > 0 && activeRows.every(
+      r => r.expectedMarginPercent !== null && !isNaN(r.expectedMarginPercent) && r.expectedMarginPercent > 0
+    );
   }
 
   get totalBatchReceiveUnits(): number {
@@ -335,6 +404,10 @@ export class ReceivingComponent implements OnInit {
 
   submitBatchReceive(): void {
     if (this.batchRows.length === 0) return;
+    if (!this.isBatchMarginValid) {
+      this.notificationService.warning('Minden átveendő tételhez kötelező megadni a várható eladási árrést (%-ban)!');
+      return;
+    }
     this.isSubmitting = true;
     this.cdr.markForCheck();
 
@@ -343,6 +416,7 @@ export class ReceivingComponent implements OnInit {
       .map(r => ({
         item_id: r.item.id,
         quantity: r.quantity,
+        expected_margin_percent: r.expectedMarginPercent!,
         confirmed_wipe_codes: r.selectedWipeCode ? [r.selectedWipeCode] : (r.item.wipe_codes?.length ? r.item.wipe_codes : undefined),
         note: this.batchNote ? this.batchNote.trim() : null
       }));

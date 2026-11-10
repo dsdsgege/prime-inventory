@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, List
 
-from pdf_parser import parse_invoice_pdf
+from pdf_parser import parse_invoice_pdf, UnsupportedInvoiceFormatError
 from excel_parser import parse_excel_sheet
 
 logging.basicConfig(
@@ -71,11 +71,21 @@ async def parse_pdf(file: UploadFile = File(...)) -> Dict[str, Any]:
 
     except HTTPException:
         raise
+    except UnsupportedInvoiceFormatError as exc:
+        logger.warning("Unsupported or invalid invoice PDF '%s': %s", file.filename, exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc)
+        )
     except Exception as exc:
         logger.exception("Failed to parse PDF file '%s': %s", file.filename, exc)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Could not parse invoice PDF: {str(exc)}"
+            detail=(
+                "A feltöltött PDF számlát nem sikerült feldolgozni (ismeretlen vagy sérült formátum). "
+                "Kérjük, jelezd a fejlesztőnek, hogy adja hozzá ezt a számlatípust a rendszerhez! "
+                f"(Részletek: {str(exc)})"
+            )
         )
 
 

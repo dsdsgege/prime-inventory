@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +69,7 @@ public class SalesController {
     }
 
     @GetMapping("/sales/export")
-    public ResponseEntity<String> exportProfitCsv(
+    public ResponseEntity<byte[]> exportProfitCsv(
             @RequestParam(name = "supplier_id", required = false) String supplierId,
             @RequestParam(name = "date_from", required = false) String dateFrom,
             @RequestParam(name = "date_to", required = false) String dateTo,
@@ -82,14 +83,14 @@ public class SalesController {
                 to,
                 cleanOptionalStr(search)
         );
-        String filename = String.format("profit_report_%s_%s.tsv",
+        String filename = String.format("profit_report_%s_%s.csv",
                 from != null ? from : "all",
                 to != null ? to : "all");
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.parseMediaType("text/tab-separated-values; charset=UTF-8"))
-                .body(csvData);
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(csvData.getBytes(StandardCharsets.UTF_8));
     }
 
     // ==========================================

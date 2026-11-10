@@ -1,8 +1,9 @@
 FROM python:3.12-slim AS runner
 
-# Install curl for healthcheck and cleanup apt cache
+# Install curl for healthcheck, poppler-utils for PDF layout fallback, and cleanup apt cache
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Create dedicated non-root user

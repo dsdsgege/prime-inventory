@@ -193,6 +193,9 @@
               <div class="text-muted" style="font-size: 0.78rem;">
                 {{ item.unit_price_gross | number }} Ft <span class="price-sub">bruttó</span> ({{ item.vat_rate }})
               </div>
+              <div *ngIf="item.expected_sale_price" class="expected-price-tag" title="Átvételkor beállított várható eladási ár">
+                <i class="fa-solid fa-tag"></i> Eladási célár: <strong>{{ item.expected_sale_price | number }} Ft</strong> (+{{ item.expected_margin_percent }}%)
+              </div>
             </td>
             <td style="text-align: center; white-space: nowrap;">
               <span class="badge badge-gray">{{ item.initial_quantity }} {{ item.unit }}</span>
@@ -283,6 +286,10 @@
             <span>Számla: <strong>{{ activeItem.invoice_number }}</strong></span> | 
             <span>Átvételre vár: <strong>{{ activeItem.pending_quantity }} {{ activeItem.unit }}</strong></span>
           </div>
+          <div style="margin-top: 0.45rem; font-size: 0.84rem; color: #1e293b;">
+            Beszerzési egységár: <strong>{{ activeItem.unit_price_gross | number }} Ft bruttó</strong>
+            <span class="text-muted">({{ activeItem.unit_price_net | number }} Ft nettó)</span>
+          </div>
         </div>
 
         <div class="form-group">
@@ -294,6 +301,55 @@
             [(ngModel)]="receiveQuantity"
             class="full-width"
           />
+        </div>
+
+        <div class="form-group margin-group-box">
+          <label class="required-label">
+            <i class="fa-solid fa-percent" style="color: var(--primary);"></i>
+            Várható eladási árrés (%) <span class="req-star">* Kötelező</span>
+          </label>
+          <div class="preset-btn-row">
+            <button
+              *ngFor="let pct of marginPresets"
+              type="button"
+              class="preset-pct-btn"
+              [class.active]="expectedMarginPercent === pct"
+              (click)="setExpectedMargin(pct)"
+            >
+              +{{ pct }}%
+            </button>
+          </div>
+          <div class="margin-input-wrapper">
+            <input
+              type="number"
+              min="0.1"
+              max="500"
+              step="0.5"
+              placeholder="Adja meg a kívánt százalékot (pl. 15 vagy 20)..."
+              [(ngModel)]="expectedMarginPercent"
+              class="full-width"
+              [class.input-invalid]="!isSingleMarginValid"
+            />
+            <span class="pct-suffix">%</span>
+          </div>
+
+          <div *ngIf="isSingleMarginValid" class="expected-price-preview">
+            <div class="preview-row">
+              <span>Várható eladási ár (+{{ expectedMarginPercent }}%):</span>
+              <strong class="preview-price">{{ calculatedExpectedUnitPrice | number }} Ft / db</strong>
+            </div>
+            <div class="preview-row sub">
+              <span>Várható árrés darabonként:</span>
+              <strong class="text-green">+{{ calculatedExpectedUnitProfit | number }} Ft / db</strong>
+            </div>
+            <div *ngIf="receiveQuantity > 1" class="preview-row sub">
+              <span>Összes várható haszon ({{ receiveQuantity }} db):</span>
+              <strong class="text-green">+{{ (calculatedExpectedUnitProfit * receiveQuantity) | number }} Ft</strong>
+            </div>
+          </div>
+          <div *ngIf="!isSingleMarginValid" class="margin-hint-warning">
+            <i class="fa-solid fa-circle-info"></i> Válasszon egy gyorsgombot (pl. +15%, +20%) vagy írja be a kívánt százalékos árrést!
+          </div>
         </div>
 
         <div *ngIf="activeItem.wipe_codes && activeItem.wipe_codes.length > 0" class="form-group">
@@ -319,7 +375,7 @@
 
       <div class="modal-footer">
         <button (click)="closeReceiveModal()" class="btn btn-secondary">Mégse</button>
-        <button (click)="submitReceive()" [disabled]="isSubmitting" class="btn btn-primary">
+        <button (click)="submitReceive()" [disabled]="isSubmitting || !isSingleMarginValid || receiveQuantity < 1" class="btn btn-primary">
           <i class="fa-solid fa-check"></i> Átvétel Rögzítése (+{{ receiveQuantity }} db raktárra)
         </button>
       </div>
@@ -328,7 +384,7 @@
 
   <!-- Batch Receive Modal Dialog -->
   <div *ngIf="showBatchReceiveModal" class="modal-backdrop">
-    <div class="modal-content" style="max-width: 680px;">
+    <div class="modal-content" style="max-width: 860px;">
       <div class="modal-header">
         <div>
           <i class="fa-solid fa-boxes-packing" style="color: var(--primary); margin-right: 0.5rem;"></i>
@@ -337,30 +393,95 @@
         <button (click)="closeBatchReceiveModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <!-- Batch Preset Toolbar -->
+        <div class="batch-margin-toolbar">
+          <div class="toolbar-label">
+            <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary);"></i>
+            <span>Közös eladási árrés (%) alkalmazása minden tételre:</span>
+          </div>
+          <div class="preset-btn-row" style="margin-bottom: 0;">
+            <button
+              *ngFor="let pct of marginPresets"
+              type="button"
+              class="preset-pct-btn"
+              [class.active]="batchPresetMargin === pct"
+              (click)="applyBatchPresetMargin(pct)"
+            >
+              +{{ pct }}% mindnek
+            </button>
+          </div>
+        </div>
+
         <div class="table-responsive" style="margin-bottom: 1rem;">
           <table class="data-table">
             <thead>
               <tr>
-                <th>Számla</th>
                 <th>Termék</th>
-                <th style="text-align: center;">Várható</th>
-                <th style="width: 110px;">Átvett db</th>
+                <th style="white-space: nowrap;">Beker. ár (Br.)</th>
+                <th style="width: 90px; text-align: center;">Átvett db</th>
+                <th style="min-width: 210px;">Eladási árrés (%) <span class="req-star">*</span></th>
+                <th style="text-align: right; white-space: nowrap;">Várható eladási ár</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let row of batchRows">
-                <td><span class="badge badge-gray">{{ row.item.invoice_number }}</span></td>
-                <td><strong>{{ row.item.product_name }}</strong></td>
-                <td style="text-align: center;">{{ row.item.pending_quantity }} {{ row.item.unit }}</td>
                 <td>
+                  <strong>{{ row.item.product_name }}</strong>
+                  <div class="text-muted" style="font-size: 0.75rem;">
+                    Számla: {{ row.item.invoice_number }} | Várható: {{ row.item.pending_quantity }} {{ row.item.unit }}
+                  </div>
+                </td>
+                <td style="white-space: nowrap; font-weight: 600;">
+                  {{ row.item.unit_price_gross | number }} Ft
+                </td>
+                <td style="text-align: center;">
                   <input
                     type="number"
                     min="1"
                     [max]="row.item.pending_quantity"
                     [(ngModel)]="row.quantity"
-                    style="width: 90px;"
+                    style="width: 75px; text-align: center;"
                   />
+                </td>
+                <td>
+                  <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                    <div class="margin-input-wrapper" style="width: 90px;">
+                      <input
+                        type="number"
+                        min="0.1"
+                        max="500"
+                        step="0.5"
+                        placeholder="%"
+                        [(ngModel)]="row.expectedMarginPercent"
+                        style="width: 100%; padding-right: 1.4rem;"
+                        [class.input-invalid]="!row.expectedMarginPercent || row.expectedMarginPercent <= 0"
+                      />
+                      <span class="pct-suffix">%</span>
+                    </div>
+                    <div class="mini-presets">
+                      <button
+                        *ngFor="let p of [15, 20, 25]"
+                        type="button"
+                        class="mini-pct-btn"
+                        [class.active]="row.expectedMarginPercent === p"
+                        (click)="setRowMargin(row, p)"
+                      >
+                        {{ p }}%
+                      </button>
+                    </div>
+                  </div>
+                </td>
+                <td style="text-align: right; white-space: nowrap;">
+                  <div *ngIf="row.expectedMarginPercent && row.expectedMarginPercent > 0">
+                    <strong style="color: #0f172a; font-size: 0.92rem;">{{ calcRowExpectedUnitPrice(row) | number }} Ft/db</strong>
+                    <div class="text-green" style="font-size: 0.75rem; font-weight: 600;">
+                      +{{ calcRowExpectedUnitProfit(row) | number }} Ft (+{{ row.expectedMarginPercent }}%)
+                    </div>
+                  </div>
+                  <span *ngIf="!row.expectedMarginPercent || row.expectedMarginPercent <= 0" class="badge badge-warning" style="font-size: 0.72rem;">
+                    Árrés kötelező!
+                  </span>
                 </td>
               </tr>
             </tbody>
@@ -380,7 +501,7 @@
 
       <div class="modal-footer">
         <button (click)="closeBatchReceiveModal()" class="btn btn-secondary">Mégse</button>
-        <button (click)="submitBatchReceive()" [disabled]="isSubmitting || totalBatchReceiveUnits <= 0" class="btn btn-primary">
+        <button (click)="submitBatchReceive()" [disabled]="isSubmitting || totalBatchReceiveUnits <= 0 || !isBatchMarginValid" class="btn btn-primary">
           <i class="fa-solid fa-check-double"></i> Csoportos Átvétel Rögzítése (+{{ totalBatchReceiveUnits }} db)
         </button>
       </div>

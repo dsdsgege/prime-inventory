@@ -104,6 +104,7 @@ public class InventoryService {
                 String pattern = "%" + search.trim().toLowerCase() + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("productName")), pattern),
+                        cb.like(cb.lower(root.get("rawDescription")), pattern),
                         cb.like(cb.lower(root.get("dataWipeCodes")), pattern),
                         cb.like(cb.lower(invoiceJoin.get("invoiceNumber")), pattern),
                         cb.like(cb.lower(supplierJoin.get("name")), pattern)
@@ -118,6 +119,10 @@ public class InventoryService {
         InventoryItem item = inventoryItemRepository.findById(itemId)
                 .orElseThrow(() -> new IllegalArgumentException("A megadott számlatétel nem található."));
 
+        if (req.getExpectedMarginPercent() == null || req.getExpectedMarginPercent() <= 0) {
+            throw new IllegalArgumentException("A várható eladási árrés (%) megadása kötelező az átvételhez!");
+        }
+
         int pendingQty = item.getPendingQuantity();
         if (req.getQuantity() > pendingQty) {
             throw new IllegalArgumentException(String.format(
@@ -126,12 +131,18 @@ public class InventoryService {
             ));
         }
 
+        double marginPct = Math.round(req.getExpectedMarginPercent() * 100.0) / 100.0;
+        long baseGross = item.getUnitPriceGross() != null ? item.getUnitPriceGross() : 0L;
+        long expectedSalePrice = Math.round(baseGross * (1.0 + (marginPct / 100.0)));
+
         int qtyBefore = item.getCurrentQuantity();
         item.setReceivedQuantity(item.getReceivedQuantity() + req.getQuantity());
         item.setCurrentQuantity(item.getCurrentQuantity() + req.getQuantity());
         int qtyAfter = item.getCurrentQuantity();
 
         item.setReceivedAt(req.getReceivedAt() != null ? req.getReceivedAt() : Instant.now());
+        item.setExpectedMarginPercent(marginPct);
+        item.setExpectedSalePrice(expectedSalePrice);
 
         if (item.getReceivedQuantity() >= item.getInitialQuantity()) {
             item.setStatus("RECEIVED");
@@ -146,9 +157,10 @@ public class InventoryService {
                 ? String.join(", ", req.getConfirmedWipeCodes())
                 : null;
 
+        String priceInfo = String.format("Várható eladási ár: %,d Ft (+%s%%)", expectedSalePrice, marginPct);
         String noteStr = (req.getNote() != null && !req.getNote().isBlank())
-                ? req.getNote().trim()
-                : String.format("Raktári átvétel: %d db", req.getQuantity());
+                ? req.getNote().trim() + " (" + priceInfo + ")"
+                : String.format("Raktári átvétel: %d db (%s)", req.getQuantity(), priceInfo);
 
         TransactionLog txLog = TransactionLog.builder()
                 .item(item)
@@ -164,8 +176,8 @@ public class InventoryService {
                 .build();
         transactionLogRepository.save(txLog);
 
-        log.info("Received {} units of item #{} ({}) into store stock. New stock: {}",
-                req.getQuantity(), item.getId(), item.getProductName(), qtyAfter);
+        log.info("Received {} units of item #{} ({}) into store stock (expectedSalePrice: {} Ft, +{}%). New stock: {}",
+                req.getQuantity(), item.getId(), item.getProductName(), expectedSalePrice, marginPct, qtyAfter);
 
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("id", item.getId());
@@ -175,6 +187,8 @@ public class InventoryService {
         res.put("quantity_after", item.getCurrentQuantity());
         res.put("status", item.getStatus());
         res.put("received_at", item.getReceivedAt());
+        res.put("expected_margin_percent", item.getExpectedMarginPercent());
+        res.put("expected_sale_price", item.getExpectedSalePrice());
         return res;
     }
 
@@ -187,6 +201,7 @@ public class InventoryService {
         for (AppDtos.BatchReceiveItemEntry entry : req.getItems()) {
             AppDtos.ReceiveRequest singleReq = new AppDtos.ReceiveRequest(
                     entry.getQuantity(),
+                    entry.getExpectedMarginPercent(),
                     entry.getConfirmedWipeCodes(),
                     Instant.now(),
                     entry.getNote() != null && !entry.getNote().isBlank() ? entry.getNote() : req.getNote()
@@ -231,6 +246,8 @@ public class InventoryService {
         if (item.getReceivedQuantity() == 0) {
             item.setStatus("ORDERED");
             item.setReceivedAt(null);
+            item.setExpectedMarginPercent(null);
+            item.setExpectedSalePrice(null);
             item.setFullyDeducted(false);
         } else if (item.getReceivedQuantity() < item.getInitialQuantity()) {
             item.setStatus("PARTIAL");
@@ -368,6 +385,7 @@ public class InventoryService {
                 String pattern = "%" + search.trim().toLowerCase() + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("productName")), pattern),
+                        cb.like(cb.lower(root.get("rawDescription")), pattern),
                         cb.like(cb.lower(root.get("dataWipeCodes")), pattern),
                         cb.like(cb.lower(invoiceJoin.get("invoiceNumber")), pattern),
                         cb.like(cb.lower(supplierJoin.get("name")), pattern)
@@ -499,6 +517,7 @@ public class InventoryService {
     public Map<String, Object> deductInventoryItem(Long itemId, AppDtos.DeductRequest req) {
         AppDtos.ReceiveRequest receiveReq = new AppDtos.ReceiveRequest(
                 req.getQuantity(),
+                15.0,
                 req.getUsedWipeCode() != null ? List.of(req.getUsedWipeCode()) : null,
                 Instant.now(),
                 req.getNote()
@@ -537,6 +556,8 @@ public class InventoryService {
                 .totalGross(it.getTotalGross())
                 .status(it.getStatus())
                 .receivedAt(it.getReceivedAt())
+                .expectedMarginPercent(it.getExpectedMarginPercent())
+                .expectedSalePrice(it.getExpectedSalePrice())
                 .isFullyDeducted(it.isFullyDeducted())
                 .wipeCodes(it.getWipeCodesList())
                 .supplierName(it.getSupplier() != null ? it.getSupplier().getName() : "")

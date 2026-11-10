@@ -141,7 +141,7 @@
         <button (click)="excelInput.click()" [disabled]="isImporting" class="btn btn-secondary btn-sm" title="Webshop eladási Excel/CSV importálása">
           <i class="fa-solid fa-file-import"></i> {{ isImporting ? 'Importálás...' : 'Excel Import' }}
         </button>
-        <button (click)="exportReport()" [disabled]="isExporting" class="btn btn-secondary btn-sm" title="Szűrt időszak exportálása TSV/Excel formátumban">
+        <button (click)="exportReport()" [disabled]="isExporting" class="btn btn-secondary btn-sm" title="Szűrt időszak exportálása CSV/Excel formátumban">
           <i class="fa-solid fa-file-export"></i> Kimutatás Exportálása
         </button>
         <span class="badge badge-gray">{{ totalElements }} értékesítés</span>

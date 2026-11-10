@@ -338,7 +338,8 @@ public class SalesService {
         List<Sale> sales = saleRepository.findAll(spec, sort);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Sorszám\tDátum\tNév\tTermék\tEladási Ár br\tBeker Ár br\tProfit Br\tNetto Profit\n");
+        // UTF-8 BOM (\uFEFF) ensures Microsoft Excel recognizes UTF-8 encoding with Hungarian accented characters
+        sb.append("\uFEFFSorszám;Dátum;Név;Termék;Eladási Ár br;Beker Ár br;Profit Br;Netto Profit\r\n");
 
         for (Sale s : sales) {
             String orderNo = s.getOrderNumber() != null ? s.getOrderNumber() : ("#" + s.getId());
@@ -353,16 +354,26 @@ public class SalesService {
                     ? s.getProfitNet()
                     : Math.round(profitGross / 1.27);
 
-            sb.append(orderNo).append("\t")
-                    .append(dateStr).append("\t")
-                    .append(cust).append("\t")
-                    .append(prod).append("\t")
-                    .append(s.getSalePrice() != null ? s.getSalePrice() : 0L).append("\t")
-                    .append(costTotal > 0 ? costTotal : "").append("\t")
-                    .append(profitGross).append("\t")
-                    .append(profitNet).append("\n");
+            sb.append(escapeCsv(orderNo)).append(";")
+                    .append(escapeCsv(dateStr)).append(";")
+                    .append(escapeCsv(cust)).append(";")
+                    .append(escapeCsv(prod)).append(";")
+                    .append(s.getSalePrice() != null ? s.getSalePrice() : 0L).append(";")
+                    .append(costTotal > 0 ? costTotal : "").append(";")
+                    .append(profitGross).append(";")
+                    .append(profitNet).append("\r\n");
         }
         return sb.toString();
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) {
+            return "";
+        }
+        if (value.contains(";") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 
     // ==========================================
