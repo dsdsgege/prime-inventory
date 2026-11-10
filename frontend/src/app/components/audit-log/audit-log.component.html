@@ -3,14 +3,14 @@
     <div class="card-title">
       <i class="fa-solid fa-clock-rotate-left" style="color: var(--primary);"></i>
       <span>Készletmozgások & Tranzakciós Audit Napló</span>
-      <span class="badge badge-gray" style="margin-left: auto;">{{ logs.length }} bejegyzés</span>
+      <span class="badge badge-gray" style="margin-left: auto;">{{ totalElements }} bejegyzés</span>
     </div>
 
     <!-- Filter Bar -->
-    <div class="log-filters">
+    <div class="log-filters" style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
       <div class="filter-group">
         <label><i class="fa-solid fa-filter"></i> Művelet típusa:</label>
-        <select [(ngModel)]="selectedAction" (ngModelChange)="loadLogs()">
+        <select [(ngModel)]="selectedAction" (ngModelChange)="onFilterChange()">
           <option value="">Összes művelet</option>
           <option value="STOCK_RECEIVE">Átvétel raktárra (STOCK_RECEIVE)</option>
           <option value="SALE">Értékesítés (SALE)</option>
@@ -24,10 +24,28 @@
 
       <div class="filter-group">
         <label><i class="fa-solid fa-building"></i> Beszállító:</label>
-        <select [(ngModel)]="selectedSupplierId" (ngModelChange)="loadLogs()">
+        <select [(ngModel)]="selectedSupplierId" (ngModelChange)="onFilterChange()">
           <option [ngValue]="null">Összes beszállító</option>
           <option *ngFor="let s of suppliers" [ngValue]="s.id">{{ s.name }}</option>
         </select>
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-file-invoice"></i> Számla:</label>
+        <select [(ngModel)]="selectedInvoiceId" (ngModelChange)="onFilterChange()">
+          <option [ngValue]="null">Összes számla</option>
+          <option *ngFor="let inv of invoices" [ngValue]="inv.id">{{ inv.invoice_number }}</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-calendar-day"></i> Kezdő dátum:</label>
+        <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="onFilterChange()" />
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-calendar-day"></i> Záró dátum:</label>
+        <input type="date" [(ngModel)]="dateTo" (ngModelChange)="onFilterChange()" />
       </div>
     </div>
 
@@ -108,6 +126,21 @@
           </tr>
         </tbody>
       </table>
+
+      <!-- Pagination Bar -->
+      <div *ngIf="totalPages > 1" class="pagination-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0 0.25rem; border-top: 1px solid var(--border); margin-top: 1rem;">
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Összesen <strong>{{ totalElements }}</strong> naplóbejegyzés ({{ currentPage + 1 }} / {{ totalPages }} oldal)
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage === 0" (click)="goToPage(currentPage - 1)">
+            <i class="fa-solid fa-chevron-left"></i> Előző
+          </button>
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage >= totalPages - 1" (click)="goToPage(currentPage + 1)">
+            Következő <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

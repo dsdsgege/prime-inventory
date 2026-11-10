@@ -1,97 +1,457 @@
 <div class="app-container">
+  <!-- Top Metrics -->
   <div class="metrics-grid">
     <div class="metric-card">
-      <div class="metric-icon green"><i class="fa-solid fa-mobile-screen-button"></i></div>
+      <div class="metric-icon green">
+        <i class="fa-solid fa-mobile-screen-button"></i>
+      </div>
       <div>
         <div class="metric-label">Elérhető készlet</div>
-        <div class="metric-val text-green">{{ inStockItems.length }} db</div>
+        <div class="metric-val text-green">{{ totalAvailableUnits }} db készülék</div>
       </div>
     </div>
+
     <div class="metric-card">
-      <div class="metric-icon blue"><i class="fa-solid fa-coins"></i></div>
+      <div class="metric-icon blue">
+        <i class="fa-solid fa-coins"></i>
+      </div>
       <div>
         <div class="metric-label">Készletérték (Bruttó)</div>
         <div class="metric-val">{{ totalStockValueGross | number }} Ft</div>
       </div>
     </div>
+
+    <div class="metric-card">
+      <div class="metric-icon amber">
+        <i class="fa-solid fa-cart-shopping"></i>
+      </div>
+      <div>
+        <div class="metric-label">Raktárról már eladva</div>
+        <div class="metric-val text-amber">{{ totalSoldUnits }} db készülék</div>
+      </div>
+    </div>
   </div>
 
+  <!-- Filter Controls Bar -->
+  <div class="card filter-card">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label><i class="fa-solid fa-building"></i> Beszállító:</label>
+        <select [(ngModel)]="selectedSupplierId" (ngModelChange)="onSupplierChange()">
+          <option [ngValue]="null">Összes beszállító</option>
+          <option *ngFor="let s of suppliers" [ngValue]="s.id">{{ s.name }}</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-file-invoice"></i> Számla:</label>
+        <select [(ngModel)]="selectedInvoiceId" (ngModelChange)="onFilterChange()">
+          <option [ngValue]="null">Összes számla</option>
+          <option *ngFor="let inv of filteredInvoices" [ngValue]="inv.id">
+            {{ inv.invoice_number }} ({{ inv.issue_date || 'N/A' }})
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group search-group">
+        <label><i class="fa-solid fa-magnifying-glass"></i> Keresés:</label>
+        <div class="input-with-icon">
+          <input
+            type="text"
+            placeholder="Terméknév vagy adattörlő kód..."
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="onFilterChange()"
+          />
+          <button *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()" class="clear-btn">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-group toggle-group">
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            [(ngModel)]="onlyInStock"
+            (ngModelChange)="onFilterChange()"
+          />
+          <span>Csak készleten lévő termékek</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Action Bar -->
+  <div *ngIf="selectedItemIds.size > 0" class="card" style="margin-bottom: 1.25rem; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.85rem 1.25rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="badge badge-success" style="font-size: 0.85rem; padding: 0.35rem 0.7rem;">
+          <i class="fa-solid fa-check-double"></i> {{ selectedItemIds.size }} termék kijelölve eladásra
+        </span>
+        <button (click)="clearSelection()" class="btn btn-secondary btn-sm">
+          Kijelölés törlése
+        </button>
+      </div>
+      <div>
+        <button (click)="openBatchSaleModal()" class="btn btn-success btn-sm">
+          <i class="fa-solid fa-cart-shopping"></i> Kijelöltek csoportos eladása ({{ selectedInStockItems.length }} tétel)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stock Table -->
   <div class="card">
     <div class="card-title">
       <i class="fa-solid fa-boxes-stacked" style="color: var(--primary);"></i>
-      <span>Raktárkészlet</span>
+      <span>Üzlet Raktárkészlete & Értékesítés</span>
+      <span class="badge badge-gray" style="margin-left: auto;">{{ totalElements }} terméktípus</span>
     </div>
+
     <div *ngIf="isLoading" style="padding: 2.5rem; text-align: center; color: #64748b;">
       <i class="fa-solid fa-circle-notch fa-spin"></i> Raktárkészlet betöltése...
     </div>
+
     <div *ngIf="!isLoading" class="table-responsive">
       <table class="data-table">
         <thead>
-        <tr>
-          <th>Termék megnevezése</th>
-          <th>NMHH Kód / SN</th>
-          <th>Beszerzési ár (Bruttó/Nettó)</th>
-          <th>Beérkezés ideje</th>
-          <th style="text-align: center;">Állapot</th>
-          <th style="text-align: right;">Művelet</th>
-        </tr>
+          <tr>
+            <th style="width: 38px; text-align: center;">
+              <input type="checkbox" [checked]="isAllSelected" (change)="toggleSelectAll()" title="Összes készleten lévő kijelölése" />
+            </th>
+            <th>Beszállító</th>
+            <th>Számlaszám</th>
+            <th>Termék megnevezése</th>
+            <th style="min-width: 170px;">NMHH Kód(ok)</th>
+            <th style="white-space: nowrap; line-height: 1.2;">
+              Beszerzési ár<br>
+              <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(Bruttó / Nettó)</span>
+            </th>
+            <th>Beérkezés ideje</th>
+            <th style="text-align: center;">Készletállapot</th>
+            <th style="text-align: right;">Művelet</th>
+          </tr>
         </thead>
         <tbody>
-        <tr *ngFor="let item of items" [class.row-dimmed]="item.status !== 'IN_STOCK'">
-          <td><div class="product-title">{{ item.productName }}</div></td>
-          <td>
-              <span *ngIf="item.wipeCode" class="badge badge-code" title="NMHH adattörlő kód">
-                <i class="fa-solid fa-shield-halved"></i> {{ item.wipeCode }}
+          <tr *ngFor="let item of items" [class.row-dimmed]="item.current_quantity === 0" [class.row-selected]="isSelected(item.id)">
+            <td style="text-align: center;">
+              <input
+                *ngIf="item.current_quantity > 0"
+                type="checkbox"
+                [checked]="isSelected(item.id)"
+                (change)="toggleSelection(item.id)"
+              />
+            </td>
+            <td><strong>{{ item.supplier_name }}</strong></td>
+            <td><span class="badge badge-gray">{{ item.invoice_number }}</span></td>
+            <td>
+              <div class="product-title">{{ item.product_name }}</div>
+              <div *ngIf="item.raw_description && item.raw_description !== item.product_name" class="product-desc-snippet">
+                {{ item.raw_description.slice(0, 75) }}...
+              </div>
+            </td>
+            <td>
+              <!-- Smart Compact NMHH Code Listing -->
+              <div *ngIf="!item.wipe_codes || item.wipe_codes.length === 0" class="text-muted" style="font-size: 0.8rem;">
+                –
+              </div>
+              <div *ngIf="item.wipe_codes && item.wipe_codes.length === 1" class="wipe-badges">
+                <span class="badge badge-code" title="NMHH adattörlő kód">
+                  <i class="fa-solid fa-shield-halved"></i> {{ item.wipe_codes[0] }}
+                </span>
+              </div>
+              <div *ngIf="item.wipe_codes && item.wipe_codes.length > 1" class="wipe-badges">
+                <span class="badge badge-code" title="NMHH adattörlő kód">
+                  <i class="fa-solid fa-shield-halved"></i> {{ item.wipe_codes[0] }}
+                </span>
+                <button
+                  (click)="viewAllCodes(item)"
+                  class="badge badge-gray code-btn"
+                  title="Összes adattörlő kód megtekintése"
+                >
+                  +{{ item.wipe_codes.length - 1 }} kód <i class="fa-solid fa-chevron-right" style="font-size: 0.65rem;"></i>
+                </button>
+              </div>
+            </td>
+            <td style="white-space: nowrap;">
+              <div><strong>{{ item.unit_price_gross | number }} Ft</strong> <span class="price-sub">bruttó</span></div>
+              <div class="text-muted" style="font-size: 0.78rem;">
+                {{ item.unit_price_net | number }} Ft <span class="price-sub">nettó</span>
+              </div>
+            </td>
+            <td style="font-size: 0.85rem; color: #475569; white-space: nowrap;">
+              {{ item.received_at ? (item.received_at | date:'yyyy.MM.dd HH:mm') : '–' }}
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+              <span *ngIf="item.current_quantity > 0" class="badge badge-success stock-badge">
+                <i class="fa-solid fa-box"></i> {{ item.current_quantity }} {{ item.unit }} készleten
               </span>
-            <span *ngIf="item.serialNumber" class="badge badge-gray" style="margin-top: 4px;">SN: {{ item.serialNumber }}</span>
-          </td>
-          <td>
-            <div><strong>{{ item.acquisitionGrossPrice | number }} Ft</strong></div>
-            <div class="text-muted" style="font-size: 0.78rem;">{{ item.acquisitionNetPrice | number }} Ft</div>
-          </td>
-          <td>{{ item.receivedAt ? (item.receivedAt | date:'yyyy.MM.dd HH:mm') : '-' }}</td>
-          <td style="text-align: center;">
-            <span *ngIf="item.status === 'IN_STOCK'" class="badge badge-success stock-badge">Raktáron</span>
-            <span *ngIf="item.status !== 'IN_STOCK'" class="badge badge-gray">{{ item.status }}</span>
-          </td>
-          <td style="text-align: right;">
-            <button *ngIf="item.status === 'IN_STOCK'" (click)="openSaleModal(item)" class="btn btn-success btn-sm">
-              <i class="fa-solid fa-cart-shopping"></i> Eladás
-            </button>
-          </td>
-        </tr>
+              <span *ngIf="item.current_quantity === 0" class="badge badge-gray">
+                <i class="fa-solid fa-circle-check"></i> 0 db (Eladva)
+              </span>
+              <div *ngIf="item.sold_quantity > 0" class="text-muted" style="font-size: 0.72rem; margin-top: 2px;">
+                Eladva: {{ item.sold_quantity }} db
+              </div>
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              <button
+                *ngIf="item.current_quantity > 0"
+                (click)="openSaleModal(item)"
+                class="btn btn-success btn-sm"
+                title="Termék eladásának rögzítése és haszon kalkuláció"
+              >
+                <i class="fa-solid fa-cart-shopping"></i> Eladás
+              </button>
+              <span *ngIf="item.current_quantity === 0" class="text-muted" style="font-size: 0.8rem;">
+                Kifogyott
+              </span>
+            </td>
+          </tr>
+          <tr *ngIf="items.length === 0">
+            <td colspan="9" class="empty-state">
+              <i class="fa-solid fa-box-open empty-icon"></i>
+              <div>Nem található fizikailag raktáron lévő készülék.</div>
+              <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+                Ha van beérkezett számlája, vegye át a termékeket a <strong>Számlák & Átvétel</strong> menüpontban!
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
+
+      <!-- Pagination Bar -->
+      <div *ngIf="totalPages > 1" class="pagination-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0 0.25rem; border-top: 1px solid var(--border); margin-top: 1rem;">
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Összesen <strong>{{ totalElements }}</strong> terméktípus ({{ currentPage + 1 }} / {{ totalPages }} oldal)
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage === 0" (click)="goToPage(currentPage - 1)">
+            <i class="fa-solid fa-chevron-left"></i> Előző
+          </button>
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage >= totalPages - 1" (click)="goToPage(currentPage + 1)">
+            Következő <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Sale Modal Dialog -->
+  <!-- Single Sale Modal Dialog -->
   <div *ngIf="showSaleModal && activeItem" class="modal-backdrop">
     <div class="modal-content">
       <div class="modal-header">
-        <div><span>Termék Értékesítése</span></div>
+        <div>
+          <i class="fa-solid fa-cart-shopping" style="color: var(--success); margin-right: 0.5rem;"></i>
+          <span>Értékesítés Rögzítése & Árrés Számítás</span>
+        </div>
         <button (click)="closeSaleModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
+
       <div class="modal-body">
-        <div class="modal-item-name">{{ activeItem.productName }}</div>
-        <div class="form-group" style="margin-top: 1rem;">
-          <label>Tényleges eladási ár (Ft bruttó):</label>
-          <input type="number" [(ngModel)]="sellingPriceGross" class="full-width" />
+        <div class="modal-info-box">
+          <div class="modal-item-name">{{ activeItem.product_name }}</div>
+          <div class="modal-item-meta">
+            <span>Beszállító: <strong>{{ activeItem.supplier_name }}</strong></span> | 
+            <span>Számla: <strong>{{ activeItem.invoice_number }}</strong></span> | 
+            <span>Készleten: <strong>{{ activeItem.current_quantity }} {{ activeItem.unit }}</strong></span>
+          </div>
+          <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #1e293b;">
+            Beszerzési bruttó egységár: <strong>{{ activeItem.unit_price_gross | number }} Ft</strong>
+          </div>
         </div>
+
+        <div class="form-row" style="display: flex; gap: 1rem;">
+          <div class="form-group" style="flex: 1;">
+            <label>Eladott darabszám (db):</label>
+            <input
+              type="number"
+              min="1"
+              [max]="activeItem.current_quantity"
+              [(ngModel)]="saleQuantity"
+              class="full-width"
+            />
+          </div>
+
+          <div class="form-group" style="flex: 2;">
+            <label>Tényleges eladási ár (Ft bruttó):</label>
+            <input
+              type="number"
+              min="0"
+              step="500"
+              placeholder="Pl.: 350000"
+              [(ngModel)]="salePrice"
+              class="full-width"
+            />
+          </div>
+        </div>
+
+        <!-- Live Profit Calculation Card -->
+        <div class="profit-calc-card" [class.profit-positive]="estimatedProfit > 0" [class.profit-negative]="estimatedProfit < 0">
+          <div class="profit-calc-row">
+            <span>Beszerzési bekerülés:</span>
+            <strong>{{ (activeItem.unit_price_gross * saleQuantity) | number }} Ft</strong>
+          </div>
+          <div class="profit-calc-row">
+            <span>Eladási bevétel:</span>
+            <strong>{{ (salePrice || 0) | number }} Ft</strong>
+          </div>
+          <hr style="margin: 0.4rem 0; border: none; border-top: 1px dashed rgba(0,0,0,0.15);" />
+          <div class="profit-calc-row highlight">
+            <span>Várható Realizált Haszon:</span>
+            <strong>
+              {{ estimatedProfit > 0 ? '+' : '' }}{{ estimatedProfit | number }} Ft
+              ({{ estimatedMarginPercent | number:'1.1-1' }}%)
+            </strong>
+          </div>
+        </div>
+
+        <div *ngIf="activeItem.wipe_codes && activeItem.wipe_codes.length > 0" class="form-group" style="margin-top: 1rem;">
+          <label>Kiadott készülék NMHH adattörlő kódja (opcionális):</label>
+          <select [(ngModel)]="selectedWipeCode" class="full-width">
+            <option [ngValue]="null">-- Nincs megjelölve / Tetszőleges kód --</option>
+            <option *ngFor="let code of activeItem.wipe_codes" [ngValue]="code">
+              {{ code }}
+            </option>
+          </select>
+        </div>
+
         <div class="form-group">
-          <label>Vevő neve (opcionális):</label>
-          <input type="text" [(ngModel)]="customerName" class="full-width" />
+          <label>Vevő neve / Nyugtaszám / Bizonylatszám (opcionális):</label>
+          <input
+            type="text"
+            placeholder="Pl.: Kis János, NY-2026/001"
+            [(ngModel)]="customerName"
+            class="full-width"
+          />
         </div>
+
         <div class="form-group">
           <label>Megjegyzés (opcionális):</label>
-          <input type="text" [(ngModel)]="saleNotes" class="full-width" />
+          <input
+            type="text"
+            placeholder="Pl.: Üzleti készpénzes vásárlás..."
+            [(ngModel)]="saleNote"
+            class="full-width"
+          />
         </div>
       </div>
+
       <div class="modal-footer">
         <button (click)="closeSaleModal()" class="btn btn-secondary">Mégse</button>
-        <button (click)="submitSale()" [disabled]="isSubmitting || !sellingPriceGross" class="btn btn-success">
-          <i class="fa-solid fa-check"></i> Eladás megerősítése
+        <button (click)="submitSale()" [disabled]="isSubmitting || !salePrice || salePrice <= 0" class="btn btn-success">
+          <i class="fa-solid fa-check"></i> Eladás Rögzítése ({{ (salePrice || 0) | number }} Ft)
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Sale Modal Dialog -->
+  <div *ngIf="showBatchSaleModal" class="modal-backdrop">
+    <div class="modal-content" style="max-width: 780px;">
+      <div class="modal-header">
+        <div>
+          <i class="fa-solid fa-cart-plus" style="color: var(--success); margin-right: 0.5rem;"></i>
+          <span>Csoportos Értékesítés ({{ batchSaleRows.length }} tétel)</span>
+        </div>
+        <button (click)="closeBatchSaleModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="max-height: 68vh; overflow-y: auto;">
+        <div class="table-responsive" style="margin-bottom: 1rem;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Termék</th>
+                <th style="text-align: right;">Beker. ár (Br.)</th>
+                <th style="width: 90px;">Menny.</th>
+                <th style="width: 150px;">Eladási ár (Ft br.)</th>
+                <th style="text-align: right;">Haszon</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of batchSaleRows">
+                <td>
+                  <strong>{{ row.item.product_name }}</strong>
+                  <div class="text-muted" style="font-size: 0.75rem;">Max: {{ row.item.current_quantity }} db ({{ row.item.invoice_number }})</div>
+                </td>
+                <td style="text-align: right; white-space: nowrap;">{{ (row.item.unit_price_gross * row.quantity) | number }} Ft</td>
+                <td>
+                  <input type="number" min="1" [max]="row.item.current_quantity" [(ngModel)]="row.quantity" style="width: 75px;" />
+                </td>
+                <td>
+                  <input type="number" min="0" step="500" [(ngModel)]="row.salePrice" style="width: 135px;" />
+                </td>
+                <td style="text-align: right; white-space: nowrap; font-weight: 700;" [style.color]="(row.salePrice - row.item.unit_price_gross * row.quantity) >= 0 ? 'var(--success)' : 'var(--danger)'">
+                  {{ (row.salePrice - row.item.unit_price_gross * row.quantity) > 0 ? '+' : '' }}{{ (row.salePrice - row.item.unit_price_gross * row.quantity) | number }} Ft
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="profit-calc-card" [class.profit-positive]="batchTotalProfit >= 0" [class.profit-negative]="batchTotalProfit < 0" style="margin-bottom: 1rem;">
+          <div class="profit-calc-row">
+            <span>Összes beszerzési bekerülés:</span>
+            <strong>{{ batchTotalCost | number }} Ft</strong>
+          </div>
+          <div class="profit-calc-row">
+            <span>Összes eladási bevétel:</span>
+            <strong>{{ batchTotalRevenue | number }} Ft</strong>
+          </div>
+          <hr style="margin: 0.4rem 0; border: none; border-top: 1px dashed rgba(0,0,0,0.15);" />
+          <div class="profit-calc-row highlight">
+            <span>Összes Várható Haszon:</span>
+            <strong>{{ batchTotalProfit > 0 ? '+' : '' }}{{ batchTotalProfit | number }} Ft</strong>
+          </div>
+        </div>
+
+        <div class="form-row" style="display: flex; gap: 1rem;">
+          <div class="form-group" style="flex: 1;">
+            <label>Vevő neve / Bizonylatszám (opcionális):</label>
+            <input type="text" placeholder="Pl.: Kis János" [(ngModel)]="batchCustomerName" class="full-width" />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>Megjegyzés (opcionális):</label>
+            <input type="text" placeholder="Csoportos eladás megjegyzése..." [(ngModel)]="batchSaleNote" class="full-width" />
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeBatchSaleModal()" class="btn btn-secondary">Mégse</button>
+        <button (click)="submitBatchSale()" [disabled]="isSubmitting || batchTotalRevenue <= 0" class="btn btn-success">
+          <i class="fa-solid fa-check-double"></i> Csoportos Eladás Rögzítése ({{ batchTotalRevenue | number }} Ft)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Codes Modal Dialog -->
+  <div *ngIf="showCodesModal && modalCodesItem" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <i class="fa-solid fa-shield-halved" style="color: var(--primary); margin-right: 0.5rem;"></i>
+          <span>NMHH Adattörlő Kódok ({{ modalCodesItem.wipe_codes.length }} db)</span>
+        </div>
+        <button (click)="closeCodesModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-item-name" style="margin-bottom: 0.75rem;">{{ modalCodesItem.product_name }}</div>
+        <div class="codes-list">
+          <div *ngFor="let code of modalCodesItem.wipe_codes; let i = index" class="code-item">
+            <span class="code-idx">{{ i + 1 }}.</span>
+            <span class="badge badge-code">{{ code }}</span>
+            <button (click)="copyCode(code)" class="btn-copy" title="Kód másolása">
+              <i class="fa-regular fa-copy"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeCodesModal()" class="btn btn-secondary">Bezárás</button>
       </div>
     </div>
   </div>

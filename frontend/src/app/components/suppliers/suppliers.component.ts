@@ -1,25 +1,14 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
-import { InvoiceSummary } from '../../models/types';
-
-export interface DerivedSupplier {
-  id?: number;
-  name: string;
-  taxNumber: string;
-  euTaxNumber?: string;
-  address?: string;
-  bankAccount?: string;
-  invoiceCount: number;
-  totalItems: number;
-  totalInStockQty: number;
-}
+import { Supplier, Invoice } from '../../models/types';
 
 @Component({
   selector: 'app-suppliers',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, FormsModule],
   templateUrl: './suppliers.component.html',
   styleUrl: './suppliers.component.scss'
 })
@@ -27,67 +16,96 @@ export class SuppliersComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  invoices: InvoiceSummary[] = [];
-  selectedSupplier: DerivedSupplier | null = null;
+  suppliers: Supplier[] = [];
+  invoices: Invoice[] = [];
+  selectedSupplier: Supplier | null = null;
+  searchQuery = '';
   isLoadingSuppliers = true;
   isLoadingInvoices = true;
-  totalInStockAcrossAll = 0;
+
+  // Pagination
+  currentPage = 0;
+  pageSize = 20;
+  totalElements = 0;
+  totalPages = 1;
 
   ngOnInit(): void {
+    this.loadSuppliers();
     this.loadInvoices();
   }
 
-  loadInvoices(): void {
-    this.isLoadingInvoices = true;
+  loadSuppliers(): void {
     this.isLoadingSuppliers = true;
     this.cdr.markForCheck();
-
-    this.api.getInvoices().subscribe({
+    this.api.getSuppliers().subscribe({
       next: (data) => {
-        this.invoices = data;
-        this.isLoadingInvoices = false;
+        this.suppliers = data;
         this.isLoadingSuppliers = false;
-        this.calculateMetrics();
         this.cdr.markForCheck();
       },
-      error: () => {
-        this.isLoadingInvoices = false;
+      error: (err) => {
+        console.error('Failed to load suppliers', err);
         this.isLoadingSuppliers = false;
         this.cdr.markForCheck();
       }
     });
   }
 
-  get suppliers(): DerivedSupplier[] {
-    const map = new Map<string, DerivedSupplier>();
-    for (const inv of this.invoices) {
-      const name = inv.supplierName || 'Ismeretlen beszállító';
-      const entry = map.get(name) ?? {
-        name,
-        taxNumber: 'N/A',
-        invoiceCount: 0,
-        totalItems: 0,
-        totalInStockQty: 0
-      };
-      entry.invoiceCount++;
-      entry.totalItems += inv.itemsCount || 0;
-      entry.totalInStockQty += inv.totalGrossAmount || 0;
-      map.set(name, entry);
-    }
-    return Array.from(map.values());
-  }
-
-  calculateMetrics(): void {
-    this.totalInStockAcrossAll = this.invoices.reduce((acc, inv) => acc + (inv.itemsCount || 0), 0);
-  }
-
-  selectSupplier(supplier: DerivedSupplier): void {
-    this.selectedSupplier = this.selectedSupplier?.name === supplier.name ? null : supplier;
+  loadInvoices(): void {
+    this.isLoadingInvoices = true;
     this.cdr.markForCheck();
+    const supplierId = this.selectedSupplier ? this.selectedSupplier.id : null;
+    this.api.getInvoicesPage({
+      supplier_id: supplierId,
+      search: this.searchQuery ? this.searchQuery.trim() : null,
+      page: this.currentPage,
+      size: this.pageSize
+    }).subscribe({
+      next: (page) => {
+        this.invoices = page.content;
+        this.totalElements = page.totalElements;
+        this.totalPages = Math.max(1, page.totalPages);
+        this.isLoadingInvoices = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error('Failed to load invoices', err);
+        this.isLoadingInvoices = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  selectSupplier(s: Supplier): void {
+    if (this.selectedSupplier?.id === s.id) {
+      this.selectedSupplier = null;
+    } else {
+      this.selectedSupplier = s;
+    }
+    this.currentPage = 0;
+    this.cdr.markForCheck();
+    this.loadInvoices();
   }
 
   clearSupplierSelection(): void {
     this.selectedSupplier = null;
+    this.currentPage = 0;
     this.cdr.markForCheck();
+    this.loadInvoices();
+  }
+
+  onSearchChange(): void {
+    this.currentPage = 0;
+    this.loadInvoices();
+  }
+
+  goToPage(page: number): void {
+    if (page < 0 || page >= this.totalPages) return;
+    this.currentPage = page;
+    this.loadInvoices();
+  }
+
+  get totalInStockAcrossAll(): number {
+    return this.suppliers.reduce((acc, s) => acc + (s.total_in_stock_qty || 0), 0);
   }
 }

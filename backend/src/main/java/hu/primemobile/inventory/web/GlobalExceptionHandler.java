@@ -24,24 +24,28 @@ public class GlobalExceptionHandler {
         private int status;
         private String error;
         private String message;
+        private String detail;
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex) {
+        log.warn("Authentication failed: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new ErrorResponse(Instant.now(), 401, "Unauthorized", ex.getMessage()));
+                .body(new ErrorResponse(Instant.now(), 401, "Unauthorized", ex.getMessage(), ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Bad request: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(Instant.now(), 400, "Bad Request", ex.getMessage()));
+                .body(new ErrorResponse(Instant.now(), 400, "Bad Request", ex.getMessage(), ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorResponse> handleIllegalState(IllegalStateException ex) {
+        log.warn("Conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse(Instant.now(), 409, "Conflict", ex.getMessage()));
+                .body(new ErrorResponse(Instant.now(), 409, "Conflict", ex.getMessage(), ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -49,14 +53,15 @@ public class GlobalExceptionHandler {
         String msg = ex.getBindingResult().getFieldErrors().stream()
                 .map(err -> err.getField() + ": " + err.getDefaultMessage())
                 .collect(Collectors.joining(", "));
+        log.warn("Validation failed: {}", msg);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(Instant.now(), 400, "Validation Error", msg));
+                .body(new ErrorResponse(Instant.now(), 400, "Validation Error", msg, msg));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex) {
         log.error("Unhandled server exception", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse(Instant.now(), 500, "Internal Server Error", ex.getMessage()));
+                .body(new ErrorResponse(Instant.now(), 500, "Internal Server Error", ex.getMessage(), ex.getMessage()));
     }
 }

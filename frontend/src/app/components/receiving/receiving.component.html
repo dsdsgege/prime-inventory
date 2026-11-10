@@ -1,181 +1,418 @@
 <div class="app-container">
-  <!-- Metrics -->
+  <!-- Top Metrics -->
   <div class="metrics-grid">
     <div class="metric-card">
-      <div class="metric-icon blue"><i class="fa-solid fa-file-invoice"></i></div>
+      <div class="metric-icon blue">
+        <i class="fa-solid fa-file-invoice"></i>
+      </div>
       <div>
-        <div class="metric-label">Aktív számlák</div>
-        <div class="metric-val">{{ invoices.length }} db</div>
+        <div class="metric-label">Számlázott tételek</div>
+        <div class="metric-val">{{ totalElements }} tétel ({{ totalInvoicedUnits }} db)</div>
       </div>
     </div>
+
     <div class="metric-card">
-      <div class="metric-icon amber"><i class="fa-solid fa-truck-ramp-box"></i></div>
+      <div class="metric-icon amber">
+        <i class="fa-solid fa-truck-ramp-box"></i>
+      </div>
       <div>
-        <div class="metric-label">Számlázott tételek összesen</div>
-        <div class="metric-val text-amber">{{ totalInvoicedUnits }} db</div>
+        <div class="metric-label">Beérkezésre vár</div>
+        <div class="metric-val text-amber">{{ totalPendingUnits }} db készülék</div>
       </div>
     </div>
+
     <div class="metric-card">
-      <div class="metric-icon green"><i class="fa-solid fa-boxes-stacked"></i></div>
+      <div class="metric-icon green">
+        <i class="fa-solid fa-boxes-stacked"></i>
+      </div>
       <div>
-        <div class="metric-label">Fennmaradó (nem vett át)</div>
-        <div class="metric-val text-green">{{ totalRemainingUnits }} db</div>
+        <div class="metric-label">Átvéve raktárra</div>
+        <div class="metric-val text-green">{{ totalReceivedUnits }} db készülék</div>
       </div>
     </div>
   </div>
 
-  <!-- Invoice list -->
-  <div class="card" style="margin-bottom: 1.5rem;">
+  <!-- Filter Controls Bar -->
+  <div class="card filter-card">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label><i class="fa-solid fa-building"></i> Beszállító:</label>
+        <select [(ngModel)]="selectedSupplierId" (ngModelChange)="onSupplierChange()">
+          <option [ngValue]="null">Összes beszállító</option>
+          <option *ngFor="let s of suppliers" [ngValue]="s.id">{{ s.name }}</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-file-invoice"></i> Számla:</label>
+        <select [(ngModel)]="selectedInvoiceId" (ngModelChange)="onFilterChange()">
+          <option [ngValue]="null">Összes számla</option>
+          <option *ngFor="let inv of filteredInvoices" [ngValue]="inv.id">
+            {{ inv.invoice_number }} ({{ inv.issue_date || 'N/A' }})
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group search-group">
+        <label><i class="fa-solid fa-magnifying-glass"></i> Keresés:</label>
+        <div class="input-with-icon">
+          <input
+            type="text"
+            placeholder="Terméknév vagy adattörlő kód..."
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="onFilterChange()"
+          />
+          <button *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()" class="clear-btn">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-group toggle-group">
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            [(ngModel)]="onlyPending"
+            (ngModelChange)="onFilterChange()"
+          />
+          <span>Csak átvételre váró tételek</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Action Bar -->
+  <div *ngIf="selectedItemIds.size > 0" class="card" style="margin-bottom: 1.25rem; background: #eff6ff; border: 1px solid #bfdbfe; padding: 0.85rem 1.25rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="badge badge-primary" style="font-size: 0.85rem; padding: 0.35rem 0.7rem;">
+          <i class="fa-solid fa-check-double"></i> {{ selectedItemIds.size }} tétel kijelölve
+        </span>
+        <button (click)="selectAllPending()" class="btn btn-secondary btn-sm">
+          Összes átvételre váró kijelölése
+        </button>
+        <button (click)="clearSelection()" class="btn btn-secondary btn-sm">
+          Kijelölés törlése
+        </button>
+      </div>
+      <div style="display: flex; gap: 0.6rem;">
+        <button
+          *ngIf="selectedPendingItems.length > 0"
+          (click)="openBatchReceiveModal()"
+          class="btn btn-primary btn-sm"
+        >
+          <i class="fa-solid fa-box-open"></i> Kijelöltek átvétele ({{ selectedPendingItems.length }} tétel)
+        </button>
+        <button
+          *ngIf="selectedReceivedItems.length > 0"
+          (click)="submitBatchCancel()"
+          class="btn btn-danger btn-sm"
+        >
+          <i class="fa-solid fa-rotate-left"></i> Kijelöltek visszavonása ({{ selectedReceivedItems.length }} tétel)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Invoices & Receiving Table -->
+  <div class="card">
     <div class="card-title">
-      <i class="fa-solid fa-file-invoice"></i>
-      <span>Aktív számlák – válasszon számla részleteinek betöltéséhez</span>
-      <span class="badge badge-gray" style="margin-left: auto;">{{ invoices.length }} db</span>
+      <i class="fa-solid fa-clipboard-check" style="color: var(--primary);"></i>
+      <span>Számlázott Tételek & Raktári Átvétel</span>
+      <div style="margin-left: auto; display: flex; gap: 0.6rem; align-items: center;">
+        <button *ngIf="totalPendingUnits > 0" (click)="selectAllPending(); openBatchReceiveModal()" class="btn btn-primary btn-sm">
+          <i class="fa-solid fa-boxes-packing"></i> Összes váró tétel átvétele
+        </button>
+        <span class="badge badge-gray">{{ totalElements }} tétel</span>
+      </div>
     </div>
-    <div *ngIf="isLoadingInvoices" style="padding: 2rem; text-align: center; color: #64748b;">
-      <i class="fa-solid fa-circle-notch fa-spin"></i> Számlák betöltése...
+
+    <div *ngIf="isLoading" style="padding: 2.5rem; text-align: center; color: #64748b;">
+      <i class="fa-solid fa-circle-notch fa-spin"></i> Számlatételek betöltése...
     </div>
-    <div *ngIf="!isLoadingInvoices" class="table-responsive">
+
+    <div *ngIf="!isLoading" class="table-responsive">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Számlaszám</th>
+            <th style="width: 38px; text-align: center;">
+              <input type="checkbox" [checked]="isAllSelected" (change)="toggleSelectAll()" title="Összes kijelölése" />
+            </th>
             <th>Beszállító</th>
-            <th>Kelt</th>
-            <th>Összeg (bruttó)</th>
-            <th>Tételek</th>
-            <th style="text-align:right;">Kiválasztás</th>
+            <th>Számlaszám</th>
+            <th>Termék megnevezése</th>
+            <th style="min-width: 170px;">NMHH Kód(ok)</th>
+            <th style="white-space: nowrap; line-height: 1.2;">
+              Beszerzési ár<br>
+              <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(Nettó / Bruttó)</span>
+            </th>
+            <th style="text-align: center;">Számlázva</th>
+            <th style="text-align: center;">Átvéve raktárra</th>
+            <th style="text-align: center;">Állapot</th>
+            <th style="text-align: right;">Művelet</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let inv of invoices"
-              [class.row-selected]="selectedInvoice?.id === inv.id"
-              style="cursor: pointer;"
-              (click)="selectInvoice(inv)">
-            <td><span class="badge badge-gray">{{ inv.invoiceNumber }}</span></td>
-            <td><strong>{{ inv.supplierName }}</strong></td>
-            <td>{{ inv.issueDate || '–' }}</td>
-            <td>{{ inv.totalGrossAmount ? (inv.totalGrossAmount | number:'1.0-0') + ' Ft' : '–' }}</td>
-            <td>{{ inv.itemsCount }} tétel</td>
-            <td style="text-align:right;">
-              <button class="btn btn-primary btn-sm" (click)="selectInvoice(inv); $event.stopPropagation()">
-                <i class="fa-solid fa-eye"></i> Betölt
-              </button>
+          <tr *ngFor="let item of items" [class.row-dimmed]="item.pending_quantity === 0" [class.row-selected]="isSelected(item.id)">
+            <td style="text-align: center;">
+              <input type="checkbox" [checked]="isSelected(item.id)" (change)="toggleSelection(item.id)" />
             </td>
-          </tr>
-          <tr *ngIf="invoices.length === 0">
-            <td colspan="6" class="empty-state">
-              <i class="fa-solid fa-file-circle-exclamation empty-icon"></i>
-              <div>Nincs aktív számla. Töltse fel az első számlát a <a routerLink="/upload">Számla feltöltés</a> oldalon.</div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Invoice detail -->
-  <div *ngIf="isLoadingDetail" style="padding: 2rem; text-align: center; color: #64748b;">
-    <i class="fa-solid fa-circle-notch fa-spin"></i> Számla részleteinek betöltése...
-  </div>
-
-  <div *ngIf="selectedInvoice && !isLoadingDetail" class="card">
-    <div class="card-title">
-      <i class="fa-solid fa-list-check"></i>
-      <span>{{ selectedInvoice.invoiceNumber }} – Tételek átvétele</span>
-      <button (click)="clearSelection()" class="btn btn-secondary btn-sm" style="margin-left: auto;">
-        <i class="fa-solid fa-xmark"></i> Bezárás
-      </button>
-    </div>
-    <div class="table-responsive">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Termék</th>
-            <th>ME</th>
-            <th style="text-align:center;">Számlázott</th>
-            <th style="text-align:center;">Fennmaradó</th>
-            <th>Egységár nettó</th>
-            <th>ÁFA</th>
-            <th style="text-align:right;">Átvétel</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let item of selectedInvoice.items" [class.row-dimmed]="item.fullyDeducted">
-            <td>{{ item.lineIndex }}</td>
+            <td><strong>{{ item.supplier_name }}</strong></td>
+            <td><span class="badge badge-gray">{{ item.invoice_number }}</span></td>
             <td>
-              <div class="product-title">{{ item.productName }}</div>
-              <div *ngIf="item.wipeCodes && item.wipeCodes.length > 0" class="wipe-badges">
-                <span *ngFor="let code of item.wipeCodes.slice(0, 2)" class="badge badge-blue badge-sm">{{ code }}</span>
-                <span *ngIf="item.wipeCodes.length > 2" class="badge badge-gray badge-sm">+{{ item.wipeCodes.length - 2 }} kód</span>
+              <div class="product-title">{{ item.product_name }}</div>
+              <div *ngIf="item.raw_description && item.raw_description !== item.product_name" class="product-desc-snippet">
+                {{ item.raw_description.slice(0, 75) }}...
               </div>
             </td>
-            <td>{{ item.unit }}</td>
-            <td style="text-align:center;">{{ item.initialQuantity }}</td>
-            <td style="text-align:center;">
-              <span [class.text-amber]="item.currentQuantity > 0" [class.text-green]="item.currentQuantity === 0">
-                {{ item.currentQuantity }}
+            <td>
+              <!-- Smart Compact NMHH Code Listing -->
+              <div *ngIf="!item.wipe_codes || item.wipe_codes.length === 0" class="text-muted" style="font-size: 0.8rem;">
+                –
+              </div>
+              <div *ngIf="item.wipe_codes && item.wipe_codes.length === 1" class="wipe-badges">
+                <span class="badge badge-code" title="NMHH adattörlő kód">
+                  <i class="fa-solid fa-shield-halved"></i> {{ item.wipe_codes[0] }}
+                </span>
+              </div>
+              <div *ngIf="item.wipe_codes && item.wipe_codes.length > 1" class="wipe-badges">
+                <span class="badge badge-code" title="NMHH adattörlő kód">
+                  <i class="fa-solid fa-shield-halved"></i> {{ item.wipe_codes[0] }}
+                </span>
+                <button
+                  (click)="viewAllCodes(item)"
+                  class="badge badge-gray code-btn"
+                  title="Összes adattörlő kód megtekintése"
+                >
+                  +{{ item.wipe_codes.length - 1 }} kód <i class="fa-solid fa-chevron-right" style="font-size: 0.65rem;"></i>
+                </button>
+              </div>
+            </td>
+            <td style="white-space: nowrap;">
+              <div><strong>{{ item.unit_price_net | number }} Ft</strong> <span class="price-sub">nettó</span></div>
+              <div class="text-muted" style="font-size: 0.78rem;">
+                {{ item.unit_price_gross | number }} Ft <span class="price-sub">bruttó</span> ({{ item.vat_rate }})
+              </div>
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+              <span class="badge badge-gray">{{ item.initial_quantity }} {{ item.unit }}</span>
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+              <span class="badge" [ngClass]="item.received_quantity > 0 ? 'badge-success' : 'badge-gray'">
+                <i class="fa-solid fa-boxes-stacked"></i> {{ item.received_quantity }} / {{ item.initial_quantity }} {{ item.unit }}
+              </span>
+              <div *ngIf="item.received_at" class="text-muted" style="font-size: 0.72rem; margin-top: 2px;">
+                {{ item.received_at | date:'yyyy.MM.dd HH:mm' }}
+              </div>
+            </td>
+            <td style="text-align: center;">
+              <span *ngIf="item.pending_quantity === 0" class="badge badge-success">
+                <i class="fa-solid fa-circle-check"></i> Hiánytalan
+              </span>
+              <span *ngIf="item.pending_quantity > 0 && item.received_quantity > 0" class="badge badge-primary">
+                <i class="fa-solid fa-hourglass-half"></i> Részleges ({{ item.pending_quantity }} várható)
+              </span>
+              <span *ngIf="item.received_quantity === 0" class="badge badge-warning">
+                <i class="fa-solid fa-truck"></i> Átvételre vár ({{ item.pending_quantity }})
               </span>
             </td>
-            <td>{{ item.unitPriceNet | number:'1.0-0' }} Ft</td>
-            <td>{{ item.vatRate }}</td>
-            <td style="text-align:right;">
-              <button
-                *ngIf="!item.fullyDeducted"
-                class="btn btn-primary btn-sm"
-                (click)="openReceiveModal(item)"
-                title="Raktárra vételez">
-                <i class="fa-solid fa-truck-ramp-box"></i> Átvétel
-              </button>
-              <span *ngIf="item.fullyDeducted" class="badge badge-green">
-                <i class="fa-solid fa-check"></i> Teljes
-              </span>
+            <td style="text-align: right; white-space: nowrap;">
+              <div class="action-buttons">
+                <button
+                  *ngIf="item.pending_quantity > 0"
+                  (click)="openReceiveModal(item)"
+                  class="btn btn-primary btn-sm"
+                  title="Termék fizikai bevételezése a raktárba"
+                >
+                  <i class="fa-solid fa-box-open"></i> Átvétel
+                </button>
+
+                <button
+                  *ngIf="item.received_quantity > 0"
+                  (click)="cancelReceive(item)"
+                  class="btn btn-danger btn-sm"
+                  title="Téves átvétel visszavonása (-1 db)"
+                >
+                  <i class="fa-solid fa-rotate-left"></i> Visszavonás
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="items.length === 0">
+            <td colspan="10" class="empty-state">
+              <i class="fa-solid fa-box-open empty-icon"></i>
+              <div>Nem található számlatétel a megadott szűrők alapján.</div>
             </td>
           </tr>
         </tbody>
       </table>
+
+      <!-- Pagination Bar -->
+      <div *ngIf="totalPages > 1" class="pagination-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0 0.25rem; border-top: 1px solid var(--border); margin-top: 1rem;">
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Összesen <strong>{{ totalElements }}</strong> tétel ({{ currentPage + 1 }} / {{ totalPages }} oldal)
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage === 0" (click)="goToPage(currentPage - 1)">
+            <i class="fa-solid fa-chevron-left"></i> Előző
+          </button>
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage >= totalPages - 1" (click)="goToPage(currentPage + 1)">
+            Következő <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Receive Modal -->
+  <!-- Single Receive Modal Dialog -->
   <div *ngIf="showReceiveModal && activeItem" class="modal-backdrop">
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <i class="fa-solid fa-truck-ramp-box" style="color: var(--success); margin-right: 0.5rem;"></i>
-          <span>Raktárra Vétel</span>
+          <i class="fa-solid fa-box-open" style="color: var(--primary); margin-right: 0.5rem;"></i>
+          <span>Csomag Átvétel & Raktárra Helyezés</span>
         </div>
         <button (click)="closeReceiveModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
+
       <div class="modal-body">
         <div class="modal-info-box">
-          <div class="modal-item-name">{{ activeItem.productName }}</div>
+          <div class="modal-item-name">{{ activeItem.product_name }}</div>
           <div class="modal-item-meta">
-            Egységár nettó: <strong>{{ activeItem.unitPriceNet | number:'1.0-0' }} Ft</strong> |
-            ÁFA: <strong>{{ activeItem.vatRate }}</strong>
+            <span>Beszállító: <strong>{{ activeItem.supplier_name }}</strong></span> | 
+            <span>Számla: <strong>{{ activeItem.invoice_number }}</strong></span> | 
+            <span>Átvételre vár: <strong>{{ activeItem.pending_quantity }} {{ activeItem.unit }}</strong></span>
           </div>
         </div>
 
         <div class="form-group">
-          <label>Átvett mennyiség (db):</label>
-          <input type="number" min="1" [max]="activeItem.currentQuantity" [(ngModel)]="receiveQuantity" class="full-width" />
+          <label>Most átvett mennyiség (db):</label>
+          <input
+            type="number"
+            min="1"
+            [max]="activeItem.pending_quantity"
+            [(ngModel)]="receiveQuantity"
+            class="full-width"
+          />
+        </div>
+
+        <div *ngIf="activeItem.wipe_codes && activeItem.wipe_codes.length > 0" class="form-group">
+          <label>Beérkezett készülék adattörlő kódja (opcionális ellenőrzés):</label>
+          <select [(ngModel)]="selectedWipeCode" class="full-width">
+            <option [ngValue]="null">-- Minden tartozó kód átvéve --</option>
+            <option *ngFor="let code of activeItem.wipe_codes" [ngValue]="code">
+              {{ code }}
+            </option>
+          </select>
         </div>
 
         <div class="form-group">
-          <label>Sorozatszám (IMEI / S/N) – opcionális:</label>
-          <input type="text" placeholder="pl. 353XXX..." [(ngModel)]="receiveSerial" class="full-width" />
-        </div>
-
-        <div class="form-group">
-          <label>Adattörlő kód – opcionális:</label>
-          <input type="text" placeholder="NMHH kód..." [(ngModel)]="receiveWipeCode" class="full-width" />
+          <label>Megjegyzés a mozgásnaplóhoz (opcionális):</label>
+          <input
+            type="text"
+            placeholder="Pl.: Csomag sértetlenül megérkezett..."
+            [(ngModel)]="receiveNote"
+            class="full-width"
+          />
         </div>
       </div>
+
       <div class="modal-footer">
         <button (click)="closeReceiveModal()" class="btn btn-secondary">Mégse</button>
-        <button (click)="submitReceive()" [disabled]="isSubmitting || receiveQuantity < 1" class="btn btn-primary">
-          <i class="fa-solid fa-check"></i> Átvétel megerősítése (+{{ receiveQuantity }} db)
+        <button (click)="submitReceive()" [disabled]="isSubmitting" class="btn btn-primary">
+          <i class="fa-solid fa-check"></i> Átvétel Rögzítése (+{{ receiveQuantity }} db raktárra)
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Receive Modal Dialog -->
+  <div *ngIf="showBatchReceiveModal" class="modal-backdrop">
+    <div class="modal-content" style="max-width: 680px;">
+      <div class="modal-header">
+        <div>
+          <i class="fa-solid fa-boxes-packing" style="color: var(--primary); margin-right: 0.5rem;"></i>
+          <span>Csoportos Raktári Átvétel ({{ batchRows.length }} tétel)</span>
+        </div>
+        <button (click)="closeBatchReceiveModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+        <div class="table-responsive" style="margin-bottom: 1rem;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Számla</th>
+                <th>Termék</th>
+                <th style="text-align: center;">Várható</th>
+                <th style="width: 110px;">Átvett db</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of batchRows">
+                <td><span class="badge badge-gray">{{ row.item.invoice_number }}</span></td>
+                <td><strong>{{ row.item.product_name }}</strong></td>
+                <td style="text-align: center;">{{ row.item.pending_quantity }} {{ row.item.unit }}</td>
+                <td>
+                  <input
+                    type="number"
+                    min="1"
+                    [max]="row.item.pending_quantity"
+                    [(ngModel)]="row.quantity"
+                    style="width: 90px;"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="form-group">
+          <label>Közös megjegyzés a mozgásnaplóhoz (opcionális):</label>
+          <input
+            type="text"
+            placeholder="Pl.: Szállítmány hiánytalanul átvéve..."
+            [(ngModel)]="batchNote"
+            class="full-width"
+          />
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeBatchReceiveModal()" class="btn btn-secondary">Mégse</button>
+        <button (click)="submitBatchReceive()" [disabled]="isSubmitting || totalBatchReceiveUnits <= 0" class="btn btn-primary">
+          <i class="fa-solid fa-check-double"></i> Csoportos Átvétel Rögzítése (+{{ totalBatchReceiveUnits }} db)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Codes Modal Dialog -->
+  <div *ngIf="showCodesModal && modalCodesItem" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <i class="fa-solid fa-shield-halved" style="color: var(--primary); margin-right: 0.5rem;"></i>
+          <span>NMHH Adattörlő Kódok ({{ modalCodesItem.wipe_codes.length }} db)</span>
+        </div>
+        <button (click)="closeCodesModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-item-name" style="margin-bottom: 0.75rem;">{{ modalCodesItem.product_name }}</div>
+        <div class="codes-list">
+          <div *ngFor="let code of modalCodesItem.wipe_codes; let i = index" class="code-item">
+            <span class="code-idx">{{ i + 1 }}.</span>
+            <span class="badge badge-code">{{ code }}</span>
+            <button (click)="copyCode(code)" class="btn-copy" title="Kód másolása">
+              <i class="fa-regular fa-copy"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button (click)="closeCodesModal()" class="btn btn-secondary">Bezárás</button>
       </div>
     </div>
   </div>

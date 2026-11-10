@@ -39,7 +39,7 @@
       <div *ngIf="isUploading" class="dropzone-content">
         <i class="fa-solid fa-circle-notch fa-spin dropzone-spinner"></i>
         <div class="dropzone-title">Számla feldolgozása folyamatban...</div>
-        <div class="dropzone-sub">Kérlek várj, amíg az adatok bekerülnek a helyi adatbázisba</div>
+        <div class="dropzone-sub">Kérlek várj, amíg az adatok bekerülnek az adatbázisba</div>
       </div>
     </div>
 
@@ -49,36 +49,35 @@
         <i class="fa-solid fa-circle-check"></i>
         <strong>Sikeres feldolgozás!</strong>
       </div>
-
-      <!-- Kivéve: {{ uploadResult.message }}, mert nincs ilyen mező a DTO-ban -->
-      <div class="result-message">A számla adatai sikeresen elmentve az adatbázisba.</div>
+      <div class="result-message">{{ uploadResult.message }}</div>
 
       <div class="result-details">
         <div class="detail-badge">
           <i class="fa-solid fa-building"></i>
-          <span>Beszállító: <strong>{{ uploadResult.supplier.name }}</strong></span>
+          <span>Beszállító: <strong>{{ uploadResult.supplier_name }}</strong></span>
         </div>
         <div class="detail-badge">
           <i class="fa-solid fa-file-invoice"></i>
-          <span>Számlaszám: <strong>{{ uploadResult.invoiceNumber }}</strong></span>
+          <span>Számlaszám: <strong>{{ uploadResult.invoice_number }}</strong></span>
         </div>
         <div class="detail-badge">
           <i class="fa-solid fa-boxes-stacked"></i>
-          <!-- item_count helyett a tömb hossza -->
-          <span>Tételek száma: <strong>{{ uploadResult.items.length }} tétel</strong></span>
+          <span>Tételek száma: <strong>{{ uploadResult.item_count }} tétel</strong></span>
         </div>
         <div class="detail-badge">
           <i class="fa-solid fa-mobile-screen-button"></i>
-          <!-- unit_count helyett a komponens metódusa -->
-          <span>Készülékek darabszáma: <strong>{{ getTotalUnits(uploadResult) }} db</strong></span>
+          <span>Készülékek darabszáma: <strong>{{ uploadResult.unit_count }} db</strong></span>
         </div>
       </div>
 
-      <!-- Kivéve: filtered_services blokk, mert a Java backend nem küldi át -->
+      <div *ngIf="uploadResult.filtered_services && uploadResult.filtered_services.length > 0" class="filter-note">
+        <i class="fa-solid fa-filter"></i>
+        <span>Kiszűrt nem fizikai tételek: <em>{{ uploadResult.filtered_services.join(', ') }}</em></span>
+      </div>
 
       <div class="result-actions">
         <button (click)="goToInventory()" class="btn btn-primary">
-          <i class="fa-solid fa-arrow-right"></i> Ugrás a készlethez & Mínuszoláshoz
+          <i class="fa-solid fa-arrow-right"></i> Ugrás az Átvételhez (Számlák & Átvétel)
         </button>
         <button (click)="uploadResult = null" class="btn btn-secondary">
           Újabb számla feltöltése

@@ -1,73 +1,262 @@
 <div class="app-container">
+  <!-- Top Metrics -->
   <div class="metrics-grid">
     <div class="metric-card">
-      <div class="metric-icon blue"><i class="fa-solid fa-cash-register"></i></div>
+      <div class="metric-icon blue">
+        <i class="fa-solid fa-cash-register"></i>
+      </div>
       <div>
         <div class="metric-label">Összes eladási bevétel</div>
-        <div class="metric-val">{{ (summary?.totalSalesGross || 0) | number }} Ft</div>
+        <div class="metric-val">{{ report.total_revenue | number }} Ft</div>
       </div>
     </div>
+
     <div class="metric-card">
-      <div class="metric-icon amber"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+      <div class="metric-icon amber">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+      </div>
       <div>
         <div class="metric-label">Beszerzési bekerülés (ELÁBÉ)</div>
-        <div class="metric-val text-amber">{{ (summary?.totalCostGross || 0) | number }} Ft</div>
+        <div class="metric-val text-amber">{{ report.total_cost | number }} Ft</div>
       </div>
     </div>
+
     <div class="metric-card profit-card">
-      <div class="metric-icon green"><i class="fa-solid fa-chart-line"></i></div>
+      <div class="metric-icon green">
+        <i class="fa-solid fa-chart-line"></i>
+      </div>
       <div>
         <div class="metric-label">Realizált Bruttó Haszon</div>
-        <div class="metric-val text-green">+{{ (summary?.totalProfitGross || 0) | number }} Ft</div>
+        <div class="metric-val text-green">
+          +{{ report.total_profit | number }} Ft
+          <span class="margin-badge">{{ report.profit_margin_percent | number:'1.1-1' }}%</span>
+        </div>
       </div>
     </div>
+
     <div class="metric-card">
-      <div class="metric-icon purple"><i class="fa-solid fa-bag-shopping"></i></div>
+      <div class="metric-icon purple">
+        <i class="fa-solid fa-bag-shopping"></i>
+      </div>
       <div>
         <div class="metric-label">Értékesített darabszám</div>
-        <div class="metric-val">{{ summary?.totalItemsSold || 0 }} db ({{ summary?.totalOrdersCount || 0 }} eladás)</div>
+        <div class="metric-val">{{ report.total_units_sold }} db ({{ report.total_sales_count }} eladás)</div>
       </div>
     </div>
   </div>
 
+  <!-- Import Result Notice -->
+  <div *ngIf="importResult" class="card" style="margin-bottom: 1.25rem; background: #f0fdf4; border: 1px solid #bbf7d0;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <strong style="color: #166534;">
+          <i class="fa-solid fa-file-excel"></i> Excel import eredménye:
+        </strong>
+        <span>
+          {{ importResult.orders_processed }} rendelés, {{ importResult.items_processed }} tétel feldolgozva
+          (Készlettel párosítva: <strong>{{ importResult.items_matched_with_stock }} db</strong>,
+          Összforgalom: <strong>{{ importResult.total_sales_amount | number }} Ft</strong>,
+          Számított haszon: <strong>{{ importResult.total_profit_calculated | number }} Ft</strong>).
+        </span>
+        <ul *ngIf="importResult.notices && importResult.notices.length > 0" style="margin: 0.5rem 0 0 1.25rem; font-size: 0.82rem; color: #92400e;">
+          <li *ngFor="let n of importResult.notices.slice(0, 5)">{{ n }}</li>
+        </ul>
+      </div>
+      <button (click)="importResult = null" class="btn btn-secondary btn-sm">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card filter-card">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label><i class="fa-solid fa-building"></i> Beszállító:</label>
+        <select [(ngModel)]="selectedSupplierId" (ngModelChange)="onFilterChange()">
+          <option [ngValue]="null">Összes beszállító</option>
+          <option *ngFor="let s of suppliers" [ngValue]="s.id">{{ s.name }}</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-calendar-day"></i> Kezdő dátum:</label>
+        <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="onFilterChange()" />
+      </div>
+
+      <div class="filter-group">
+        <label><i class="fa-solid fa-calendar-day"></i> Záró dátum:</label>
+        <input type="date" [(ngModel)]="dateTo" (ngModelChange)="onFilterChange()" />
+      </div>
+
+      <div class="filter-group search-group">
+        <label><i class="fa-solid fa-magnifying-glass"></i> Keresés:</label>
+        <div class="input-with-icon">
+          <input
+            type="text"
+            placeholder="Termék, vevő, kód, számla..."
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="onFilterChange()"
+          />
+          <button *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()" class="clear-btn">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Action Bar -->
+  <div *ngIf="selectedSaleIds.size > 0" class="card" style="margin-bottom: 1.25rem; background: #fef2f2; border: 1px solid #fecaca; padding: 0.85rem 1.25rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="badge badge-danger" style="font-size: 0.85rem; padding: 0.35rem 0.7rem;">
+          <i class="fa-solid fa-check-double"></i> {{ selectedSaleIds.size }} eladás kijelölve
+        </span>
+        <button (click)="clearSelection()" class="btn btn-secondary btn-sm">
+          Kijelölés törlése
+        </button>
+      </div>
+      <div>
+        <button (click)="batchCancelSelected()" class="btn btn-danger btn-sm">
+          <i class="fa-solid fa-ban"></i> Kijelöltek csoportos sztornózása ({{ selectedSaleIds.size }} db)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sales Table -->
   <div class="card">
     <div class="card-title">
       <i class="fa-solid fa-receipt" style="color: var(--primary);"></i>
-      <span>Értékesítési Tranzakciók</span>
+      <span>Értékesítési Tranzakciók & Haszon Részletezés</span>
+      <div style="margin-left: auto; display: flex; gap: 0.6rem; align-items: center;">
+        <input
+          #excelInput
+          type="file"
+          accept=".xlsx,.xlsm,.xls,.csv,.tsv"
+          (change)="onImportFileSelected($event)"
+          style="display: none;"
+        />
+        <button (click)="excelInput.click()" [disabled]="isImporting" class="btn btn-secondary btn-sm" title="Webshop eladási Excel/CSV importálása">
+          <i class="fa-solid fa-file-import"></i> {{ isImporting ? 'Importálás...' : 'Excel Import' }}
+        </button>
+        <button (click)="exportReport()" [disabled]="isExporting" class="btn btn-secondary btn-sm" title="Szűrt időszak exportálása TSV/Excel formátumban">
+          <i class="fa-solid fa-file-export"></i> Kimutatás Exportálása
+        </button>
+        <span class="badge badge-gray">{{ totalElements }} értékesítés</span>
+      </div>
     </div>
+
     <div *ngIf="isLoading" style="padding: 2.5rem; text-align: center; color: #64748b;">
       <i class="fa-solid fa-circle-notch fa-spin"></i> Kimutatás betöltése...
     </div>
+
     <div *ngIf="!isLoading" class="table-responsive">
       <table class="data-table">
         <thead>
-        <tr>
-          <th>Dátum & Rendelés</th>
-          <th>Termék megnevezése</th>
-          <th>Mennyiség</th>
-          <th style="text-align: right;">Bekerülés</th>
-          <th style="text-align: right;">Eladási ár</th>
-          <th style="text-align: center;">Haszon</th>
-        </tr>
+          <tr>
+            <th style="width: 38px; text-align: center;">
+              <input type="checkbox" [checked]="isAllSelected" (change)="toggleSelectAll()" title="Összes kijelölése" />
+            </th>
+            <th>Időpont</th>
+            <th>Termék megnevezése</th>
+            <th>NMHH Kód</th>
+            <th>Beszállító & Számla</th>
+            <th style="text-align: right; white-space: nowrap; line-height: 1.2;">
+              Beszerzési ár<br>
+              <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(Bekerülés)</span>
+            </th>
+            <th style="text-align: right; white-space: nowrap; line-height: 1.2;">
+              Eladási ár<br>
+              <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(Bruttó bevétel)</span>
+            </th>
+            <th style="text-align: center; white-space: nowrap;">Realizált Haszon</th>
+            <th>Vevő / Megjegyzés</th>
+            <th style="text-align: right;">Művelet</th>
+          </tr>
         </thead>
-        <tbody *ngFor="let order of orders">
-        <tr *ngFor="let item of order.items">
-          <td style="font-size: 0.8rem; color: #64748b;">
-            {{ order.orderDate | date:'yyyy.MM.dd HH:mm' }}<br>
-            <strong style="color: #000">{{ order.orderNumber }}</strong>
-          </td>
-          <td><strong>{{ item.productName }}</strong></td>
-          <td>{{ item.quantity }} db</td>
-          <td style="text-align: right; color: #64748b;">{{ item.costPriceGross | number }} Ft</td>
-          <td style="text-align: right; font-weight: 600;">{{ item.sellingPriceGross | number }} Ft</td>
-          <td style="text-align: center;">
-              <span class="badge" [ngClass]="item.profitGross >= 0 ? 'badge-success' : 'badge-danger'">
-                {{ item.profitGross > 0 ? '+' : '' }}{{ item.profitGross | number }} Ft
+        <tbody>
+          <tr *ngFor="let sale of report.sales" [class.row-selected]="isSelected(sale.id)">
+            <td style="text-align: center;">
+              <input type="checkbox" [checked]="isSelected(sale.id)" (change)="toggleSelection(sale.id)" />
+            </td>
+            <td style="white-space: nowrap; font-size: 0.8rem; color: #64748b;">
+              {{ sale.sold_at | date:'yyyy.MM.dd HH:mm' }}
+            </td>
+            <td>
+              <strong>{{ sale.product_name }}</strong>
+              <span *ngIf="sale.quantity > 1" class="badge badge-gray" style="margin-left: 0.25rem;">
+                {{ sale.quantity }} db
               </span>
-          </td>
-        </tr>
+            </td>
+            <td>
+              <span *ngIf="sale.used_wipe_code" class="badge badge-code">
+                <i class="fa-solid fa-shield-halved"></i> {{ sale.used_wipe_code }}
+              </span>
+              <span *ngIf="!sale.used_wipe_code" class="text-muted" style="font-size: 0.8rem;">–</span>
+            </td>
+            <td>
+              <div>{{ sale.supplier_name }}</div>
+              <div class="badge badge-gray" style="margin-top: 2px;">{{ sale.invoice_number }}</div>
+            </td>
+            <td style="text-align: right; color: #64748b; white-space: nowrap;">
+              {{ (sale.unit_cost_gross * sale.quantity) | number }} Ft
+            </td>
+            <td style="text-align: right; font-weight: 600; white-space: nowrap;">
+              {{ sale.sale_price | number }} Ft
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+              <span
+                class="badge"
+                [ngClass]="sale.profit >= 0 ? 'badge-success' : 'badge-danger'"
+                style="font-size: 0.85rem; font-weight: 700; padding: 0.35rem 0.6rem;"
+              >
+                {{ sale.profit > 0 ? '+' : '' }}{{ sale.profit | number }} Ft
+                ({{ sale.profit_margin_percent | number:'1.1-1' }}%)
+              </span>
+            </td>
+            <td style="font-size: 0.85rem; color: #475569;">
+              <div *ngIf="sale.customer_name"><strong>{{ sale.customer_name }}</strong></div>
+              <div>{{ sale.note || '–' }}</div>
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              <!-- Red Danger Sztorno Button -->
+              <button
+                (click)="cancelSale(sale)"
+                class="btn btn-danger btn-sm"
+                title="Téves eladás visszavonása (készlet azonnali visszaállítása)"
+              >
+                <i class="fa-solid fa-ban"></i> Sztornó
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="report.sales.length === 0">
+            <td colspan="10" class="empty-state">
+              <i class="fa-solid fa-chart-pie empty-icon"></i>
+              <div>Még nem rögzített értékesítést a kiválasztott szűrőkkel.</div>
+              <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+                A raktáron lévő készülékeket a <strong>Raktárkészlet & Eladás</strong> menüpontban tudja eladni!
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
+
+      <!-- Pagination Bar -->
+      <div *ngIf="totalPages > 1" class="pagination-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 0 0.25rem; border-top: 1px solid var(--border); margin-top: 1rem;">
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Összesen <strong>{{ totalElements }}</strong> értékesítés ({{ currentPage + 1 }} / {{ totalPages }} oldal)
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage === 0" (click)="goToPage(currentPage - 1)">
+            <i class="fa-solid fa-chevron-left"></i> Előző
+          </button>
+          <button class="btn btn-secondary btn-sm" [disabled]="currentPage >= totalPages - 1" (click)="goToPage(currentPage + 1)">
+            Következő <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

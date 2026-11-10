@@ -1,9 +1,13 @@
 package hu.primemobile.inventory.web;
 
-import hu.primemobile.inventory.dto.SalesDto;
+import hu.primemobile.inventory.dto.AppDtos;
 import hu.primemobile.inventory.service.SalesService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,47 +16,138 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+
+import static hu.primemobile.inventory.web.InvoiceController.*;
 
 @RestController
-@RequestMapping("/api/sales")
+@RequestMapping("/api")
 @RequiredArgsConstructor
+@Slf4j
 public class SalesController {
 
     private final SalesService salesService;
 
-    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<SalesDto.BatchSalesImportResult> importSalesSpreadsheet(
-            @RequestParam("file") MultipartFile file) {
+    // ==========================================
+    // Stage 3: Sales Report & Profit Analytics (/api/sales)
+    // ==========================================
+    @GetMapping("/sales")
+    public ResponseEntity<AppDtos.SalesReportResponse> getSalesReport(
+            @RequestParam(name = "supplier_id", required = false) String supplierId,
+            @RequestParam(name = "date_from", required = false) String dateFrom,
+            @RequestParam(name = "date_to", required = false) String dateTo,
+            @RequestParam(name = "search", required = false) String search,
+            @PageableDefault(size = 200) Pageable pageable
+    ) {
+        return ResponseEntity.ok(salesService.getSalesReport(
+                cleanOptionalLong(supplierId),
+                parseDate(dateFrom),
+                parseDate(dateTo),
+                cleanOptionalStr(search),
+                pageable
+        ));
+    }
+
+    @PostMapping("/sales/{saleId}/cancel")
+    public ResponseEntity<Map<String, Object>> cancelSale(@PathVariable Long saleId) {
+        return ResponseEntity.ok(salesService.cancelSale(saleId));
+    }
+
+    @PostMapping("/sales/batch-cancel")
+    public ResponseEntity<AppDtos.BatchOperationResponse> batchCancelSales(
+            @Valid @RequestBody AppDtos.BatchCancelSaleRequest req
+    ) {
+        return ResponseEntity.ok(salesService.batchCancelSales(req));
+    }
+
+    @PostMapping(value = "/sales/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<AppDtos.BatchSalesImportResult> importSalesSpreadsheet(
+            @RequestParam("file") MultipartFile file
+    ) {
         return ResponseEntity.ok(salesService.importSalesSpreadsheet(file));
     }
 
-    @GetMapping("/orders")
-    public ResponseEntity<List<SalesDto.SalesOrderView>> getOrders(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return ResponseEntity.ok(salesService.getOrders(startDate, endDate));
-    }
-
-    @GetMapping("/profit-summary")
-    public ResponseEntity<SalesDto.ProfitSummary> getProfitSummary(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return ResponseEntity.ok(salesService.getProfitSummary(startDate, endDate));
-    }
-
-    @GetMapping("/export")
+    @GetMapping("/sales/export")
     public ResponseEntity<String> exportProfitCsv(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-
-        String csvData = salesService.exportProfitCsv(startDate, endDate);
-        String filename = String.format("profit_report_%s_%s.csv",
-                startDate != null ? startDate : "all",
-                endDate != null ? endDate : "all");
+            @RequestParam(name = "supplier_id", required = false) String supplierId,
+            @RequestParam(name = "date_from", required = false) String dateFrom,
+            @RequestParam(name = "date_to", required = false) String dateTo,
+            @RequestParam(name = "search", required = false) String search
+    ) {
+        LocalDate from = parseDate(dateFrom);
+        LocalDate to = parseDate(dateTo);
+        String csvData = salesService.exportProfitCsv(
+                cleanOptionalLong(supplierId),
+                from,
+                to,
+                cleanOptionalStr(search)
+        );
+        String filename = String.format("profit_report_%s_%s.tsv",
+                from != null ? from : "all",
+                to != null ? to : "all");
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .contentType(MediaType.parseMediaType("text/tab-separated-values; charset=UTF-8"))
                 .body(csvData);
+    }
+
+    // ==========================================
+    // Audit Log Endpoints (/api/logs)
+    // ==========================================
+    @GetMapping("/logs")
+    public ResponseEntity<List<AppDtos.TransactionLogResponse>> listLogs(
+            @RequestParam(name = "supplier_id", required = false) String supplierId,
+            @RequestParam(name = "invoice_id", required = false) String invoiceId,
+            @RequestParam(name = "inventory_item_id", required = false) String inventoryItemId,
+            @RequestParam(name = "action_type", required = false) String actionType,
+            @RequestParam(name = "date_from", required = false) String dateFrom,
+            @RequestParam(name = "date_to", required = false) String dateTo,
+            @PageableDefault(size = 200) Pageable pageable
+    ) {
+        Page<AppDtos.TransactionLogResponse> page = salesService.getTransactionLogsPage(
+                cleanOptionalLong(supplierId),
+                cleanOptionalLong(invoiceId),
+                cleanOptionalLong(inventoryItemId),
+                cleanOptionalStr(actionType),
+                parseDate(dateFrom),
+                parseDate(dateTo),
+                pageable
+        );
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(page.getTotalElements()))
+                .header("X-Total-Pages", String.valueOf(page.getTotalPages()))
+                .body(page.getContent());
+    }
+
+    @GetMapping("/logs/page")
+    public ResponseEntity<Page<AppDtos.TransactionLogResponse>> listLogsPaged(
+            @RequestParam(name = "supplier_id", required = false) String supplierId,
+            @RequestParam(name = "invoice_id", required = false) String invoiceId,
+            @RequestParam(name = "inventory_item_id", required = false) String inventoryItemId,
+            @RequestParam(name = "action_type", required = false) String actionType,
+            @RequestParam(name = "date_from", required = false) String dateFrom,
+            @RequestParam(name = "date_to", required = false) String dateTo,
+            @PageableDefault(size = 50) Pageable pageable
+    ) {
+        return ResponseEntity.ok(salesService.getTransactionLogsPage(
+                cleanOptionalLong(supplierId),
+                cleanOptionalLong(invoiceId),
+                cleanOptionalLong(inventoryItemId),
+                cleanOptionalStr(actionType),
+                parseDate(dateFrom),
+                parseDate(dateTo),
+                pageable
+        ));
+    }
+
+    private LocalDate parseDate(String str) {
+        String cleaned = cleanOptionalStr(str);
+        if (cleaned == null) return null;
+        try {
+            return LocalDate.parse(cleaned);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

@@ -1,5 +1,6 @@
 -- ==========================================
 -- Prime Mobile Inventory - Initial Schema (V1)
+-- Faithful 3-Stage Retail Lifecycle + Audit Logs + Batch Excel Sales
 -- ==========================================
 
 -- 1. Users table (Spring Security)
@@ -13,8 +14,7 @@ CREATE TABLE users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Seed initial admin user (BCrypt password: 'admin', change upon first login)
--- Hash generated using standard BCrypt 10 rounds for 'admin': $2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAf2801i
+-- Seed initial admin user (BCrypt password: 'admin')
 INSERT INTO users (username, password_hash, role, full_name, is_active)
 VALUES ('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAf2801i', 'ROLE_ADMIN', 'Rendszeradminisztrátor', TRUE)
 ON CONFLICT (username) DO NOTHING;
@@ -23,117 +23,104 @@ ON CONFLICT (username) DO NOTHING;
 CREATE TABLE suppliers (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    tax_number VARCHAR(50),
+    tax_number VARCHAR(50) NOT NULL UNIQUE,
     eu_tax_number VARCHAR(50),
-    address TEXT,
+    address VARCHAR(500),
     bank_account VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_suppliers_name ON suppliers(name);
+CREATE INDEX idx_suppliers_tax ON suppliers(tax_number);
 
 -- 3. Invoices
 CREATE TABLE invoices (
     id BIGSERIAL PRIMARY KEY,
-    supplier_id BIGINT REFERENCES suppliers(id) ON DELETE SET NULL,
+    supplier_id BIGINT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
     invoice_number VARCHAR(100) NOT NULL UNIQUE,
     issue_date DATE,
     delivery_date DATE,
     due_date DATE,
-    payment_method VARCHAR(100),
-    total_net_amount BIGINT NOT NULL DEFAULT 0,
-    total_vat_amount BIGINT NOT NULL DEFAULT 0,
-    total_gross_amount BIGINT NOT NULL DEFAULT 0,
-    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-    raw_pdf_path VARCHAR(500),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    payment_method VARCHAR(50),
+    total_net_amount BIGINT,
+    total_vat_amount BIGINT,
+    total_gross_amount BIGINT,
+    pdf_filename VARCHAR(255) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE', -- 'ACTIVE', 'COMPLETED'
+    uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_invoices_supplier ON invoices(supplier_id);
 CREATE INDEX idx_invoices_number ON invoices(invoice_number);
 CREATE INDEX idx_invoices_status ON invoices(status);
 
--- 4. Invoice Items (Original incoming invoice lines)
-CREATE TABLE invoice_items (
+-- 4. Inventory Items (3-Stage Retail States: ORDERED -> PARTIAL -> RECEIVED)
+CREATE TABLE inventory_items (
     id BIGSERIAL PRIMARY KEY,
     invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    supplier_id BIGINT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
     line_index INT NOT NULL DEFAULT 1,
     product_name VARCHAR(255) NOT NULL,
     raw_description TEXT,
+    data_wipe_codes TEXT, -- JSON array of NMHH wipe code strings
     unit VARCHAR(20) NOT NULL DEFAULT 'db',
     initial_quantity INT NOT NULL DEFAULT 1,
-    current_quantity INT NOT NULL DEFAULT 1,
+    received_quantity INT NOT NULL DEFAULT 0,
+    sold_quantity INT NOT NULL DEFAULT 0,
+    current_quantity INT NOT NULL DEFAULT 0,
     unit_price_net BIGINT NOT NULL DEFAULT 0,
-    vat_rate VARCHAR(50) NOT NULL DEFAULT 'K.AFA',
+    vat_rate VARCHAR(20) NOT NULL DEFAULT 'K.AFA',
     total_net BIGINT NOT NULL DEFAULT 0,
     total_vat BIGINT NOT NULL DEFAULT 0,
     total_gross BIGINT NOT NULL DEFAULT 0,
-    is_fully_deducted BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    status VARCHAR(30) NOT NULL DEFAULT 'ORDERED', -- 'ORDERED', 'PARTIAL', 'RECEIVED'
+    received_at TIMESTAMP WITH TIME ZONE,
+    is_fully_deducted BOOLEAN NOT NULL DEFAULT FALSE
 );
-CREATE INDEX idx_invoice_items_invoice ON invoice_items(invoice_id);
-CREATE INDEX idx_invoice_items_product ON invoice_items(product_name);
+CREATE INDEX idx_items_invoice ON inventory_items(invoice_id);
+CREATE INDEX idx_items_supplier ON inventory_items(supplier_id);
+CREATE INDEX idx_items_product ON inventory_items(product_name);
+CREATE INDEX idx_items_status ON inventory_items(status);
 
--- 5. NMHH Data Wipe Codes
-CREATE TABLE nmhh_wipe_codes (
+-- 5. Sales (Retail POS & Margin Realization + Excel Imported Sales)
+CREATE TABLE sales (
     id BIGSERIAL PRIMARY KEY,
-    invoice_item_id BIGINT REFERENCES invoice_items(id) ON DELETE CASCADE,
-    wipe_code VARCHAR(100) NOT NULL,
-    is_used BOOLEAN NOT NULL DEFAULT FALSE,
-    used_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_wipe_codes_item ON nmhh_wipe_codes(invoice_item_id);
-CREATE INDEX idx_wipe_codes_code ON nmhh_wipe_codes(wipe_code);
-
--- 6. Physical Inventory Items (Tracked in stock)
--- Lifecycle statuses: RECEIVED (on invoice, arrived in store) -> IN_STOCK (available for sale) -> SOLD -> RETURNED
-CREATE TABLE inventory_items (
-    id BIGSERIAL PRIMARY KEY,
-    invoice_item_id BIGINT REFERENCES invoice_items(id) ON DELETE SET NULL,
-    product_name VARCHAR(255) NOT NULL,
-    serial_number VARCHAR(100),
-    wipe_code VARCHAR(100),
-    acquisition_net_price BIGINT NOT NULL DEFAULT 0,
-    acquisition_gross_price BIGINT NOT NULL DEFAULT 0,
-    received_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) NOT NULL DEFAULT 'IN_STOCK',
-    selling_price_net BIGINT,
-    selling_price_gross BIGINT,
-    sold_at TIMESTAMP WITH TIME ZONE,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_inventory_status ON inventory_items(status);
-CREATE INDEX idx_inventory_product ON inventory_items(product_name);
-
--- 7. Sales Orders (Webshop or Store Batch Imports)
-CREATE TABLE sales_orders (
-    id BIGSERIAL PRIMARY KEY,
-    order_number VARCHAR(100) NOT NULL,
-    order_date DATE,
-    customer_name VARCHAR(255),
-    total_selling_price_gross BIGINT NOT NULL DEFAULT 0,
-    total_cost_price_gross BIGINT NOT NULL DEFAULT 0,
-    total_profit_gross BIGINT NOT NULL DEFAULT 0,
-    total_profit_net BIGINT NOT NULL DEFAULT 0,
-    source VARCHAR(50) NOT NULL DEFAULT 'MANUAL', -- 'EXCEL_IMPORT', 'MANUAL_POS'
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_sales_orders_number ON sales_orders(order_number);
-CREATE INDEX idx_sales_orders_date ON sales_orders(order_date);
-
--- 8. Sale Items (Individual sales line items tied to inventory)
-CREATE TABLE sale_items (
-    id BIGSERIAL PRIMARY KEY,
-    sales_order_id BIGINT REFERENCES sales_orders(id) ON DELETE CASCADE,
-    inventory_item_id BIGINT REFERENCES inventory_items(id) ON DELETE SET NULL,
-    product_name VARCHAR(255) NOT NULL,
+    inventory_item_id BIGINT REFERENCES inventory_items(id) ON DELETE CASCADE,
+    invoice_id BIGINT REFERENCES invoices(id) ON DELETE CASCADE,
+    supplier_id BIGINT REFERENCES suppliers(id) ON DELETE RESTRICT,
+    order_number VARCHAR(100),
     quantity INT NOT NULL DEFAULT 1,
-    selling_price_gross BIGINT NOT NULL DEFAULT 0,
-    cost_price_gross BIGINT NOT NULL DEFAULT 0,
-    profit_gross BIGINT NOT NULL DEFAULT 0,
+    unit_cost_net BIGINT NOT NULL DEFAULT 0,
+    unit_cost_gross BIGINT NOT NULL DEFAULT 0,
+    sale_price BIGINT NOT NULL DEFAULT 0, -- Total gross retail price (HUF)
+    profit BIGINT NOT NULL DEFAULT 0,     -- sale_price - (unit_cost_gross * quantity)
     profit_net BIGINT NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    used_wipe_code VARCHAR(100),
+    customer_name VARCHAR(255),
+    note TEXT,
+    source VARCHAR(30) NOT NULL DEFAULT 'POS', -- 'POS', 'EXCEL_IMPORT'
+    sold_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX idx_sale_items_order ON sale_items(sales_order_id);
-CREATE INDEX idx_sale_items_inventory ON sale_items(inventory_item_id);
+CREATE INDEX idx_sales_item ON sales(inventory_item_id);
+CREATE INDEX idx_sales_invoice ON sales(invoice_id);
+CREATE INDEX idx_sales_supplier ON sales(supplier_id);
+CREATE INDEX idx_sales_sold_at ON sales(sold_at);
+
+-- 6. Transaction Logs (Full Audit Trail)
+CREATE TABLE transaction_logs (
+    id BIGSERIAL PRIMARY KEY,
+    inventory_item_id BIGINT NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+    invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    supplier_id BIGINT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+    action_type VARCHAR(40) NOT NULL, -- 'INITIAL_IMPORT', 'STOCK_RECEIVE', 'STOCK_RECEIVE_CANCEL', 'SALE', 'SALE_CANCEL', 'DEDUCT', 'RESTORE'
+    quantity_changed INT NOT NULL,
+    quantity_before INT NOT NULL,
+    quantity_after INT NOT NULL,
+    used_wipe_code VARCHAR(100),
+    note TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_logs_item ON transaction_logs(inventory_item_id);
+CREATE INDEX idx_logs_invoice ON transaction_logs(invoice_id);
+CREATE INDEX idx_logs_supplier ON transaction_logs(supplier_id);
+CREATE INDEX idx_logs_action ON transaction_logs(action_type);
+CREATE INDEX idx_logs_created_at ON transaction_logs(created_at);

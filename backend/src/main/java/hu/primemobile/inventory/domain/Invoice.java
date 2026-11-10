@@ -22,7 +22,7 @@ public class Invoice {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "supplier_id")
+    @JoinColumn(name = "supplier_id", nullable = false)
     private Supplier supplier;
 
     @Column(name = "invoice_number", nullable = false, unique = true, length = 100)
@@ -37,43 +37,30 @@ public class Invoice {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
-    @Column(name = "payment_method", length = 100)
+    @Column(name = "payment_method", length = 50)
     private String paymentMethod;
 
-    @Column(name = "total_net_amount", nullable = false)
-    @Builder.Default
-    private Long totalNetAmount = 0L;
+    @Column(name = "total_net_amount")
+    private Long totalNetAmount;
 
-    @Column(name = "total_vat_amount", nullable = false)
-    @Builder.Default
-    private Long totalVatAmount = 0L;
+    @Column(name = "total_vat_amount")
+    private Long totalVatAmount;
 
-    @Column(name = "total_gross_amount", nullable = false)
-    @Builder.Default
-    private Long totalGrossAmount = 0L;
+    @Column(name = "total_gross_amount")
+    private Long totalGrossAmount;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
-    @Builder.Default
-    private InvoiceStatus status = InvoiceStatus.ACTIVE;
+    @Column(name = "pdf_filename", nullable = false)
+    private String pdfFilename;
 
-    @Column(name = "raw_pdf_path", length = 500)
-    private String rawPdfPath;
+    @Column(nullable = false, length = 30)
+    @Builder.Default
+    private String status = "ACTIVE";
+
+    @Column(name = "uploaded_at", nullable = false, updatable = false)
+    @Builder.Default
+    private Instant uploadedAt = Instant.now();
 
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<InvoiceItem> items = new ArrayList<>();
-
-    @Column(name = "created_at", updatable = false)
-    @Builder.Default
-    private Instant createdAt = Instant.now();
-
-    @Column(name = "updated_at")
-    @Builder.Default
-    private Instant updatedAt = Instant.now();
-
-    @PreUpdate
-    public void onUpdate() {
-        this.updatedAt = Instant.now();
-    }
+    private List<InventoryItem> items = new ArrayList<>();
 }

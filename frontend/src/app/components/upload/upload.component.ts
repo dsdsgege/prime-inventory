@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { NotificationService } from '../../services/notification.service';
-import { InvoiceDetail } from '../../models/types';
+import { UploadSuccessResponse } from '../../models/types';
 
 @Component({
   selector: 'app-upload',
@@ -20,7 +20,7 @@ export class UploadComponent {
 
   isDragging = false;
   isUploading = false;
-  uploadResult: InvoiceDetail | null = null;
+  uploadResult: UploadSuccessResponse | null = null;
   errorMessage: string | null = null;
 
   onDragOver(event: DragEvent): void {
@@ -40,14 +40,14 @@ export class UploadComponent {
     event.stopPropagation();
     this.isDragging = false;
 
-    if (event.dataTransfer?.files?.length) {
-      this.uploadFile(event.dataTransfer.files[0]);
+    if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+      const file = event.dataTransfer.files[0];
+      this.uploadFile(file);
     }
   }
 
-  onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+  onFileSelected(event: any): void {
+    const file = event.target.files?.[0];
     if (file) {
       this.uploadFile(file);
     }
@@ -69,26 +69,19 @@ export class UploadComponent {
       next: (res) => {
         this.isUploading = false;
         this.uploadResult = res;
-        this.notificationService.success(
-          `Számla sikeresen feldolgozva: ${res.invoiceNumber} (${res.items.length} tétel)`,
-          'Számla rögzítve'
-        );
+        this.notificationService.success(res.message, 'Számla sikeresen rögzítve');
         this.cdr.markForCheck();
       },
       error: (err) => {
         this.isUploading = false;
-        this.errorMessage = err.error?.message || 'Hiba történt a fájl feltöltése és feldolgozása közben.';
+        const detailMsg = err.error?.detail || err.error?.message || 'Hiba történt a fájl feltöltése és feldolgozása közben.';
+        this.errorMessage = detailMsg;
         this.cdr.markForCheck();
       }
     });
   }
 
   goToInventory(): void {
-    this.router.navigate(['/inventory']);
-  }
-
-  getTotalUnits(invoice: InvoiceDetail): number {
-    if (!invoice || !invoice.items) return 0;
-    return invoice.items.reduce((sum, item) => sum + (item.initialQuantity || 0), 0);
+    this.router.navigate(['/receiving']);
   }
 }
