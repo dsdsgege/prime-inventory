@@ -1,0 +1,7 @@
+/.idea
+
+/venv
+
+sample_invoices
+
+.env
