@@ -65,7 +65,6 @@ export interface InventoryItem {
   received_at?: string | null;
   expected_margin_percent?: number | null;
   expected_sale_price?: number | null;
-  is_fully_deducted: boolean;
   wipe_codes: string[];
   supplier_name?: string;
   invoice_number?: string;
@@ -187,18 +186,6 @@ export interface BatchSalesImportResult {
   total_sales_amount: number;
   total_profit_calculated: number;
   notices: string[];
-}
-
-export interface DeductPayload {
-  quantity: number;
-  expected_margin_percent?: number;
-  used_wipe_code?: string | null;
-  note?: string | null;
-}
-
-export interface RestorePayload {
-  quantity: number;
-  note?: string | null;
 }
 
 export interface TransactionLog {

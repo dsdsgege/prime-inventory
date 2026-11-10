@@ -16,8 +16,6 @@ import {
   BatchCancelSalePayload,
   BatchOperationResponse,
   BatchSalesImportResult,
-  DeductPayload,
-  RestorePayload,
   TransactionLog,
   UploadSuccessResponse
 } from '../models/types';
@@ -80,23 +78,6 @@ export class ApiService {
   }
 
   // Stage 1: Invoices & Receiving
-  getReceivingItems(filters?: {
-    supplier_id?: number | string | null;
-    invoice_id?: number | string | null;
-    status?: string | null;
-    search?: string | null;
-    page?: number | null;
-    size?: number | null;
-  }): Observable<InventoryItem[]> {
-    let params = new HttpParams();
-    if (isValidFilter(filters?.supplier_id)) params = params.set('supplier_id', String(filters!.supplier_id));
-    if (isValidFilter(filters?.invoice_id)) params = params.set('invoice_id', String(filters!.invoice_id));
-    if (isValidFilter(filters?.status)) params = params.set('status', String(filters!.status));
-    if (isValidFilter(filters?.search)) params = params.set('search', String(filters!.search));
-    params = appendPageParams(params, filters?.page, filters?.size);
-    return this.http.get<InventoryItem[]>(`${this.baseUrl}/receiving`, { params });
-  }
-
   getReceivingItemsPage(filters?: {
     supplier_id?: number | string | null;
     invoice_id?: number | string | null;
@@ -131,23 +112,6 @@ export class ApiService {
   }
 
   // Stage 2: Store Stock & Sales
-  getStockItems(filters?: {
-    supplier_id?: number | string | null;
-    invoice_id?: number | string | null;
-    only_in_stock?: boolean;
-    search?: string | null;
-    page?: number | null;
-    size?: number | null;
-  }): Observable<InventoryItem[]> {
-    let params = new HttpParams();
-    if (isValidFilter(filters?.supplier_id)) params = params.set('supplier_id', String(filters!.supplier_id));
-    if (isValidFilter(filters?.invoice_id)) params = params.set('invoice_id', String(filters!.invoice_id));
-    if (filters?.only_in_stock !== undefined) params = params.set('only_in_stock', String(filters.only_in_stock));
-    if (isValidFilter(filters?.search)) params = params.set('search', String(filters!.search));
-    params = appendPageParams(params, filters?.page, filters?.size);
-    return this.http.get<InventoryItem[]>(`${this.baseUrl}/stock`, { params });
-  }
-
   getStockItemsPage(filters?: {
     supplier_id?: number | string | null;
     invoice_id?: number | string | null;
@@ -223,27 +187,6 @@ export class ApiService {
   }
 
   // Audit Logs
-  getLogs(filters?: {
-    supplier_id?: number | string | null;
-    invoice_id?: number | string | null;
-    inventory_item_id?: number | string | null;
-    action_type?: string | null;
-    date_from?: string | null;
-    date_to?: string | null;
-    page?: number | null;
-    size?: number | null;
-  }): Observable<TransactionLog[]> {
-    let params = new HttpParams();
-    if (isValidFilter(filters?.supplier_id)) params = params.set('supplier_id', String(filters!.supplier_id));
-    if (isValidFilter(filters?.invoice_id)) params = params.set('invoice_id', String(filters!.invoice_id));
-    if (isValidFilter(filters?.inventory_item_id)) params = params.set('inventory_item_id', String(filters!.inventory_item_id));
-    if (isValidFilter(filters?.action_type)) params = params.set('action_type', String(filters!.action_type));
-    if (isValidFilter(filters?.date_from)) params = params.set('date_from', String(filters!.date_from));
-    if (isValidFilter(filters?.date_to)) params = params.set('date_to', String(filters!.date_to));
-    params = appendPageParams(params, filters?.page, filters?.size);
-    return this.http.get<TransactionLog[]>(`${this.baseUrl}/logs`, { params });
-  }
-
   getLogsPage(filters?: {
     supplier_id?: number | string | null;
     invoice_id?: number | string | null;
@@ -269,40 +212,5 @@ export class ApiService {
     const formData = new FormData();
     formData.append('file', file, file.name);
     return this.http.post<UploadSuccessResponse>(`${this.baseUrl}/invoices/upload`, formData);
-  }
-
-  // Legacy fallback
-  getInventory(filters?: {
-    supplier_id?: number | string | null;
-    invoice_id?: number | string | null;
-    only_available?: boolean;
-    search?: string | null;
-    page?: number | null;
-    size?: number | null;
-  }): Observable<InventoryItem[]> {
-    return this.getReceivingItems({
-      supplier_id: filters?.supplier_id,
-      invoice_id: filters?.invoice_id,
-      status: filters?.only_available ? 'PENDING' : null,
-      search: filters?.search,
-      page: filters?.page,
-      size: filters?.size
-    });
-  }
-
-  deductItem(itemId: number, payload: DeductPayload): Observable<any> {
-    return this.receiveItem(itemId, {
-      quantity: payload.quantity,
-      expected_margin_percent: payload.expected_margin_percent ?? 15,
-      confirmed_wipe_codes: payload.used_wipe_code ? [payload.used_wipe_code] : undefined,
-      note: payload.note
-    });
-  }
-
-  restoreItem(itemId: number, payload: RestorePayload): Observable<any> {
-    return this.cancelReceive(itemId, {
-      quantity: payload.quantity,
-      note: payload.note
-    });
   }
 }

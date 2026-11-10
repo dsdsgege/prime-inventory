@@ -89,22 +89,6 @@ public class InvoiceService {
         return invoiceRepository.findAll(spec, sortedPageable).map(this::mapToSummary);
     }
 
-    @Transactional(readOnly = true)
-    public List<AppDtos.InvoiceSummary> getAllInvoicesWithSummary(
-            Long supplierId,
-            String status,
-            String search
-    ) {
-        log.debug("Querying all invoices with summary: supplierId={}, status={}, search={}",
-                supplierId, status, search);
-
-        Specification<Invoice> spec = buildInvoiceSpec(supplierId, status, search);
-        Sort sort = Sort.by(Sort.Direction.DESC, "issueDate").and(Sort.by(Sort.Direction.DESC, "uploadedAt"));
-        return invoiceRepository.findAll(spec, sort).stream()
-                .map(this::mapToSummary)
-                .toList();
-    }
-
     private Specification<Invoice> buildInvoiceSpec(Long supplierId, String status, String search) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -249,7 +233,7 @@ public class InvoiceService {
                     .quantityChanged(qty)
                     .quantityBefore(0)
                     .quantityAfter(0)
-                    .note("Kezdeti számla import (beérkezésre vár)")
+                    .note("Számla import (beérkezésre vár)")
                     .createdAt(Instant.now())
                     .build();
             transactionLogRepository.save(txLog);

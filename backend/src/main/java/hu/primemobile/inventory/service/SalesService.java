@@ -400,26 +400,6 @@ public class SalesService {
         return transactionLogRepository.findAll(spec, sortedPageable).map(this::mapToLogResponse);
     }
 
-    @Transactional(readOnly = true)
-    public List<AppDtos.TransactionLogResponse> getTransactionLogs(
-            Long supplierId,
-            Long invoiceId,
-            Long inventoryItemId,
-            String actionType,
-            LocalDate dateFrom,
-            LocalDate dateTo
-    ) {
-        log.debug("Fetching all transaction logs: supplierId={}, invoiceId={}, itemId={}, actionType={}",
-                supplierId, invoiceId, inventoryItemId, actionType);
-
-        Specification<TransactionLog> spec = buildLogSpec(supplierId, invoiceId, inventoryItemId, actionType, dateFrom, dateTo);
-        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt");
-
-        return transactionLogRepository.findAll(spec, sort).stream()
-                .map(this::mapToLogResponse)
-                .toList();
-    }
-
     private Specification<TransactionLog> buildLogSpec(
             Long supplierId,
             Long invoiceId,

@@ -35,11 +35,6 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
-    path: 'inventory',
-    redirectTo: 'stock',
-    pathMatch: 'full'
-  },
-  {
     path: 'upload',
     component: UploadComponent,
     canActivate: [authGuard]

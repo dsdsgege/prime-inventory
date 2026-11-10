@@ -27,27 +27,6 @@ public class InventoryController {
     // ==========================================
     // Stage 1: Invoices & Receiving (/api/receiving)
     // ==========================================
-    @GetMapping("/receiving")
-    public ResponseEntity<List<AppDtos.InventoryItemResponse>> listReceivingItems(
-            @RequestParam(name = "supplier_id", required = false) String supplierId,
-            @RequestParam(name = "invoice_id", required = false) String invoiceId,
-            @RequestParam(name = "status", required = false) String statusFilter,
-            @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 200) Pageable pageable
-    ) {
-        Page<AppDtos.InventoryItemResponse> page = inventoryService.getReceivingItemsPage(
-                cleanOptionalLong(supplierId),
-                cleanOptionalLong(invoiceId),
-                cleanOptionalStr(statusFilter),
-                cleanOptionalStr(search),
-                pageable
-        );
-        return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(page.getTotalElements()))
-                .header("X-Total-Pages", String.valueOf(page.getTotalPages()))
-                .body(page.getContent());
-    }
-
     @GetMapping("/receiving/page")
     public ResponseEntity<Page<AppDtos.InventoryItemResponse>> listReceivingItemsPaged(
             @RequestParam(name = "supplier_id", required = false) String supplierId,
@@ -98,27 +77,6 @@ public class InventoryController {
     // ==========================================
     // Stage 2: Physical Store Stock & Selling (/api/stock)
     // ==========================================
-    @GetMapping("/stock")
-    public ResponseEntity<List<AppDtos.InventoryItemResponse>> listStockItems(
-            @RequestParam(name = "supplier_id", required = false) String supplierId,
-            @RequestParam(name = "invoice_id", required = false) String invoiceId,
-            @RequestParam(name = "only_in_stock", required = false, defaultValue = "true") String onlyInStock,
-            @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 200) Pageable pageable
-    ) {
-        Page<AppDtos.InventoryItemResponse> page = inventoryService.getStockItemsPage(
-                cleanOptionalLong(supplierId),
-                cleanOptionalLong(invoiceId),
-                cleanOptionalBool(onlyInStock, true),
-                cleanOptionalStr(search),
-                pageable
-        );
-        return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(page.getTotalElements()))
-                .header("X-Total-Pages", String.valueOf(page.getTotalPages()))
-                .body(page.getContent());
-    }
-
     @GetMapping("/stock/page")
     public ResponseEntity<Page<AppDtos.InventoryItemResponse>> listStockItemsPaged(
             @RequestParam(name = "supplier_id", required = false) String supplierId,
@@ -149,46 +107,5 @@ public class InventoryController {
             @Valid @RequestBody AppDtos.BatchSaleRequest req
     ) {
         return ResponseEntity.ok(inventoryService.batchSellItems(req));
-    }
-
-    // ==========================================
-    // Legacy Inventory & Deduction Endpoints (/api/inventory)
-    // ==========================================
-    @GetMapping("/inventory")
-    public ResponseEntity<List<AppDtos.InventoryItemResponse>> listInventoryLegacy(
-            @RequestParam(name = "supplier_id", required = false) String supplierId,
-            @RequestParam(name = "invoice_id", required = false) String invoiceId,
-            @RequestParam(name = "only_available", required = false) String onlyAvailable,
-            @RequestParam(name = "search", required = false) String search,
-            @PageableDefault(size = 200) Pageable pageable
-    ) {
-        boolean onlyAvail = cleanOptionalBool(onlyAvailable, false);
-        Page<AppDtos.InventoryItemResponse> page = inventoryService.getReceivingItemsPage(
-                cleanOptionalLong(supplierId),
-                cleanOptionalLong(invoiceId),
-                onlyAvail ? "PENDING" : "ALL",
-                cleanOptionalStr(search),
-                pageable
-        );
-        return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(page.getTotalElements()))
-                .header("X-Total-Pages", String.valueOf(page.getTotalPages()))
-                .body(page.getContent());
-    }
-
-    @PostMapping("/inventory/{itemId}/deduct")
-    public ResponseEntity<Map<String, Object>> deductItemLegacy(
-            @PathVariable Long itemId,
-            @Valid @RequestBody AppDtos.DeductRequest req
-    ) {
-        return ResponseEntity.ok(inventoryService.deductInventoryItem(itemId, req));
-    }
-
-    @PostMapping("/inventory/{itemId}/restore")
-    public ResponseEntity<Map<String, Object>> restoreItemLegacy(
-            @PathVariable Long itemId,
-            @Valid @RequestBody AppDtos.RestoreRequest req
-    ) {
-        return ResponseEntity.ok(inventoryService.restoreInventoryItem(itemId, req));
     }
 }

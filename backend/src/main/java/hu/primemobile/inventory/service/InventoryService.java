@@ -58,26 +58,6 @@ public class InventoryService {
         return inventoryItemRepository.findAll(spec, sortedPageable).map(this::mapToItemResponse);
     }
 
-    @Transactional(readOnly = true)
-    public List<AppDtos.InventoryItemResponse> getReceivingItems(
-            Long supplierId,
-            Long invoiceId,
-            String statusFilter,
-            String search
-    ) {
-        log.debug("Fetching all receiving items: supplierId={}, invoiceId={}, status={}, search={}",
-                supplierId, invoiceId, statusFilter, search);
-
-        Specification<InventoryItem> spec = buildReceivingSpec(supplierId, invoiceId, statusFilter, search);
-        Sort sort = Sort.by(Sort.Direction.ASC, "status")
-                .and(Sort.by(Sort.Direction.DESC, "invoice.issueDate"))
-                .and(Sort.by(Sort.Direction.ASC, "lineIndex"));
-
-        return inventoryItemRepository.findAll(spec, sort).stream()
-                .map(this::mapToItemResponse)
-                .toList();
-    }
-
     private Specification<InventoryItem> buildReceivingSpec(
             Long supplierId,
             Long invoiceId,
@@ -338,26 +318,6 @@ public class InventoryService {
         return inventoryItemRepository.findAll(spec, sortedPageable).map(this::mapToItemResponse);
     }
 
-    @Transactional(readOnly = true)
-    public List<AppDtos.InventoryItemResponse> getStockItems(
-            Long supplierId,
-            Long invoiceId,
-            boolean onlyInStock,
-            String search
-    ) {
-        log.debug("Fetching all stock items: supplierId={}, invoiceId={}, onlyInStock={}, search={}",
-                supplierId, invoiceId, onlyInStock, search);
-
-        Specification<InventoryItem> spec = buildStockSpec(supplierId, invoiceId, onlyInStock, search);
-        Sort sort = Sort.by(Sort.Direction.DESC, "currentQuantity")
-                .and(Sort.by(Sort.Direction.DESC, "receivedAt"))
-                .and(Sort.by(Sort.Direction.ASC, "productName"));
-
-        return inventoryItemRepository.findAll(spec, sort).stream()
-                .map(this::mapToItemResponse)
-                .toList();
-    }
-
     private Specification<InventoryItem> buildStockSpec(
             Long supplierId,
             Long invoiceId,
@@ -510,30 +470,6 @@ public class InventoryService {
                 .build();
     }
 
-    // ==========================================
-    // Legacy Inventory & Deduct / Restore
-    // ==========================================
-    @Transactional
-    public Map<String, Object> deductInventoryItem(Long itemId, AppDtos.DeductRequest req) {
-        AppDtos.ReceiveRequest receiveReq = new AppDtos.ReceiveRequest(
-                req.getQuantity(),
-                15.0,
-                req.getUsedWipeCode() != null ? List.of(req.getUsedWipeCode()) : null,
-                Instant.now(),
-                req.getNote()
-        );
-        return receiveInventoryItem(itemId, receiveReq);
-    }
-
-    @Transactional
-    public Map<String, Object> restoreInventoryItem(Long itemId, AppDtos.RestoreRequest req) {
-        AppDtos.CancelReceiveRequest cancelReq = new AppDtos.CancelReceiveRequest(
-                req.getQuantity(),
-                req.getNote()
-        );
-        return cancelReceiveInventoryItem(itemId, cancelReq);
-    }
-
     public AppDtos.InventoryItemResponse mapToItemResponse(InventoryItem it) {
         return AppDtos.InventoryItemResponse.builder()
                 .id(it.getId())
@@ -558,7 +494,6 @@ public class InventoryService {
                 .receivedAt(it.getReceivedAt())
                 .expectedMarginPercent(it.getExpectedMarginPercent())
                 .expectedSalePrice(it.getExpectedSalePrice())
-                .isFullyDeducted(it.isFullyDeducted())
                 .wipeCodes(it.getWipeCodesList())
                 .supplierName(it.getSupplier() != null ? it.getSupplier().getName() : "")
                 .invoiceNumber(it.getInvoice() != null ? it.getInvoice().getInvoiceNumber() : "")

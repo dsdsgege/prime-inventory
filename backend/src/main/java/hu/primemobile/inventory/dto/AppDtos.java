@@ -160,8 +160,6 @@ public class AppDtos {
         private Double expectedMarginPercent;
         @JsonProperty("expected_sale_price")
         private Long expectedSalePrice;
-        @JsonProperty("is_fully_deducted")
-        private boolean isFullyDeducted;
         @JsonProperty("wipe_codes")
         @Builder.Default
         private List<String> wipeCodes = new ArrayList<>();
@@ -404,28 +402,8 @@ public class AppDtos {
     }
 
     // ==========================================
-    // Legacy Deduct / Restore & Audit Log DTOs
+    // Audit Log DTOs
     // ==========================================
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class DeductRequest {
-        @Min(1)
-        private int quantity = 1;
-        @JsonProperty("used_wipe_code")
-        private String usedWipeCode;
-        private String note;
-    }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class RestoreRequest {
-        @Min(1)
-        private int quantity = 1;
-        private String note;
-    }
-
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

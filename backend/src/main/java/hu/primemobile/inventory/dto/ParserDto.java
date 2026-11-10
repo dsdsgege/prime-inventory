@@ -74,8 +74,6 @@ public class ParserDto {
         private String unit;
         @JsonProperty("initial_quantity")
         private Integer initialQuantity;
-        @JsonProperty("current_quantity")
-        private Integer currentQuantity;
         @JsonProperty("unit_price_net")
         private Long unitPriceNet;
         @JsonProperty("vat_rate")
@@ -86,8 +84,6 @@ public class ParserDto {
         private Long totalVat;
         @JsonProperty("total_gross")
         private Long totalGross;
-        @JsonProperty("is_fully_deducted")
-        private Boolean fullyDeducted;
     }
 
     @Data

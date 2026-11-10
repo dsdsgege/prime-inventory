@@ -96,31 +96,6 @@ public class SalesController {
     // ==========================================
     // Audit Log Endpoints (/api/logs)
     // ==========================================
-    @GetMapping("/logs")
-    public ResponseEntity<List<AppDtos.TransactionLogResponse>> listLogs(
-            @RequestParam(name = "supplier_id", required = false) String supplierId,
-            @RequestParam(name = "invoice_id", required = false) String invoiceId,
-            @RequestParam(name = "inventory_item_id", required = false) String inventoryItemId,
-            @RequestParam(name = "action_type", required = false) String actionType,
-            @RequestParam(name = "date_from", required = false) String dateFrom,
-            @RequestParam(name = "date_to", required = false) String dateTo,
-            @PageableDefault(size = 200) Pageable pageable
-    ) {
-        Page<AppDtos.TransactionLogResponse> page = salesService.getTransactionLogsPage(
-                cleanOptionalLong(supplierId),
-                cleanOptionalLong(invoiceId),
-                cleanOptionalLong(inventoryItemId),
-                cleanOptionalStr(actionType),
-                parseDate(dateFrom),
-                parseDate(dateTo),
-                pageable
-        );
-        return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(page.getTotalElements()))
-                .header("X-Total-Pages", String.valueOf(page.getTotalPages()))
-                .body(page.getContent());
-    }
-
     @GetMapping("/logs/page")
     public ResponseEntity<Page<AppDtos.TransactionLogResponse>> listLogsPaged(
             @RequestParam(name = "supplier_id", required = false) String supplierId,
