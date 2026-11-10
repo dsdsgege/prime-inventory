@@ -104,8 +104,8 @@ export class ReceivingComponent implements OnInit {
     const request: ReceiveInvoiceItemRequest = {
       invoiceItemId: this.activeItem.id,
       quantity: this.receiveQuantity,
-      serialNumber: this.receiveSerial.trim() || null,
-      wipeCode: this.receiveWipeCode.trim() || null
+      serialNumber: this.receiveSerial.trim() || undefined,
+      wipeCode: this.receiveWipeCode.trim() || undefined
     };
 
     this.api.receiveInvoiceItem(request).subscribe({

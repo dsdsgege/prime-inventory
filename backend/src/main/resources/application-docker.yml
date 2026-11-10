@@ -1,0 +1,35 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/primemobile_db}
+    username: ${SPRING_DATASOURCE_USERNAME:primemobile}
+    password: ${SPRING_DATASOURCE_PASSWORD:prime_secret_2026}
+
+app:
+  parser:
+    url: ${APP_PARSER_SERVICE_URL:http://parser-service:5000}
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/primemobile_db}
+    username: ${SPRING_DATASOURCE_USERNAME:primemobile}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: 8
+      minimum-idle: 2
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+    hu.primemobile: INFO
+    org.springframework.web: WARN

@@ -49,31 +49,32 @@
         <i class="fa-solid fa-circle-check"></i>
         <strong>Sikeres feldolgozás!</strong>
       </div>
-      <div class="result-message">{{ uploadResult.message }}</div>
+
+      <!-- Kivéve: {{ uploadResult.message }}, mert nincs ilyen mező a DTO-ban -->
+      <div class="result-message">A számla adatai sikeresen elmentve az adatbázisba.</div>
 
       <div class="result-details">
         <div class="detail-badge">
           <i class="fa-solid fa-building"></i>
-          <span>Beszállító: <strong>{{ uploadResult.supplier_name }}</strong></span>
+          <span>Beszállító: <strong>{{ uploadResult.supplier.name }}</strong></span>
         </div>
         <div class="detail-badge">
           <i class="fa-solid fa-file-invoice"></i>
-          <span>Számlaszám: <strong>{{ uploadResult.invoice_number }}</strong></span>
+          <span>Számlaszám: <strong>{{ uploadResult.invoiceNumber }}</strong></span>
         </div>
         <div class="detail-badge">
           <i class="fa-solid fa-boxes-stacked"></i>
-          <span>Tételek száma: <strong>{{ uploadResult.item_count }} tétel</strong></span>
+          <!-- item_count helyett a tömb hossza -->
+          <span>Tételek száma: <strong>{{ uploadResult.items.length }} tétel</strong></span>
         </div>
         <div class="detail-badge">
           <i class="fa-solid fa-mobile-screen-button"></i>
-          <span>Készülékek darabszáma: <strong>{{ uploadResult.unit_count }} db</strong></span>
+          <!-- unit_count helyett a komponens metódusa -->
+          <span>Készülékek darabszáma: <strong>{{ getTotalUnits(uploadResult) }} db</strong></span>
         </div>
       </div>
 
-      <div *ngIf="uploadResult.filtered_services && uploadResult.filtered_services.length > 0" class="filter-note">
-        <i class="fa-solid fa-filter"></i>
-        <span>Kiszűrt nem fizikai tételek: <em>{{ uploadResult.filtered_services.join(', ') }}</em></span>
-      </div>
+      <!-- Kivéve: filtered_services blokk, mert a Java backend nem küldi át -->
 
       <div class="result-actions">
         <button (click)="goToInventory()" class="btn btn-primary">

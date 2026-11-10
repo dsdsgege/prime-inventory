@@ -1,7 +1,6 @@
 // ============================================================
-// Auth DTOs  –  matches AuthDto.java
+// Auth DTOs
 // ============================================================
-
 export interface LoginRequest {
   username: string;
   password: string;
@@ -14,34 +13,62 @@ export interface LoginResponse {
   role: string;
 }
 
-export interface User {
+export interface UserDto {
   id?: number;
   username: string;
   fullName: string;
   role: string;
-  active?: boolean;
+  active: boolean;
 }
 
 // ============================================================
-// Invoice DTOs  –  matches InvoiceDto.java
+// Invoice DTOs
 // ============================================================
 
-export interface SupplierRef {
+export interface SupplierDto {
   id: number;
   name: string;
-  taxNumber: string;
-  euTaxNumber?: string | null;
-  address?: string | null;
-  bankAccount?: string | null;
+  taxNumber?: string;
+  euTaxNumber?: string;
+  address?: string;
+  bankAccount?: string;
 }
 
+export interface InvoiceSummary {
+  id: number;
+  invoiceNumber: string;
+  supplierName: string;
+  issueDate?: string;
+  deliveryDate?: string;
+  dueDate?: string;
+  paymentMethod?: string;
+  totalNetAmount?: number;
+  totalVatAmount?: number;
+  totalGrossAmount?: number;
+  status: string;
+  itemsCount: number;
+}
 
+export interface InvoiceDetail {
+  id: number;
+  invoiceNumber: string;
+  supplier: SupplierDto;
+  issueDate?: string;
+  deliveryDate?: string;
+  dueDate?: string;
+  paymentMethod?: string;
+  totalNetAmount?: number;
+  totalVatAmount?: number;
+  totalGrossAmount?: number;
+  status: string;
+  items: InvoiceItemDetail[];
+}
 
 export interface InvoiceItemDetail {
   id: number;
   lineIndex: number;
   productName: string;
-  rawDescription?: string | null;
+  rawDescription?: string;
   unit: string;
   initialQuantity: number;
   currentQuantity: number;
@@ -54,83 +81,62 @@ export interface InvoiceItemDetail {
   wipeCodes: string[];
 }
 
-/** Returned by GET /api/invoices */
-export interface InvoiceSummary {
-  id: number;
-  invoiceNumber: string;
-  supplierName: string;
-  issueDate?: string | null;
-  deliveryDate?: string | null;
-  dueDate?: string | null;
-  paymentMethod?: string | null;
-  totalNetAmount?: number | null;
-  totalVatAmount?: number | null;
-  totalGrossAmount?: number | null;
-  status: string;
-  itemsCount: number;
-}
-
-/** Returned by GET /api/invoices/{id} and POST /api/invoices/upload */
-export interface InvoiceDetail {
-  id: number;
-  invoiceNumber: string;
-  supplier: SupplierRef;
-  issueDate?: string | null;
-  deliveryDate?: string | null;
-  dueDate?: string | null;
-  paymentMethod?: string | null;
-  totalNetAmount?: number | null;
-  totalVatAmount?: number | null;
-  totalGrossAmount?: number | null;
-  status: string;
-  items: InvoiceItemDetail[];
-}
-
 // ============================================================
-// Inventory DTOs  –  matches InventoryDto.java
+// Inventory DTOs
 // ============================================================
-
 export type InventoryStatus = 'IN_STOCK' | 'SOLD' | 'RETURNED' | 'DAMAGED' | 'RESERVED';
 
 export interface InventoryItemView {
   id: number;
   invoiceItemId: number;
   productName: string;
-  serialNumber?: string | null;
-  wipeCode?: string | null;
-  acquisitionNetPrice?: number | null;
-  acquisitionGrossPrice?: number | null;
-  receivedAt?: string | null;
+  serialNumber?: string;
+  wipeCode?: string;
+  acquisitionNetPrice?: number;
+  acquisitionGrossPrice?: number;
+  receivedAt?: string;
   status: InventoryStatus;
-  sellingPriceNet?: number | null;
-  sellingPriceGross?: number | null;
-  soldAt?: string | null;
-  notes?: string | null;
+  sellingPriceNet?: number;
+  sellingPriceGross?: number;
+  soldAt?: string;
+  notes?: string;
 }
 
 export interface ReceiveInvoiceItemRequest {
   invoiceItemId: number;
   quantity?: number;
-  serialNumber?: string | null;
-  wipeCode?: string | null;
+  serialNumber?: string;
+  wipeCode?: string;
 }
 
 export interface SellItemRequest {
   inventoryItemId: number;
   sellingPriceGross: number;
-  sellingPriceNet?: number | null;
-  customerName?: string | null;
-  notes?: string | null;
+  sellingPriceNet?: number;
+  customerName?: string;
+  notes?: string;
 }
 
 export interface UpdateStatusRequest {
   status: InventoryStatus;
-  notes?: string | null;
+  notes?: string;
 }
 
 // ============================================================
-// Sales DTOs  –  matches SalesDto.java
+// Sales DTOs
 // ============================================================
+export interface SalesOrderView {
+  id: number;
+  orderNumber: string;
+  orderDate: string;
+  customerName?: string;
+  totalSellingPriceGross: number;
+  totalCostPriceGross: number;
+  totalProfitGross: number;
+  totalProfitNet: number;
+  source: string;
+  items: SaleItemView[];
+}
 
 export interface SaleItemView {
   id: number;
@@ -144,22 +150,9 @@ export interface SaleItemView {
   profitNet: number;
 }
 
-export interface SalesOrderView {
-  id: number;
-  orderNumber: string;
-  orderDate: string;
-  customerName?: string | null;
-  totalSellingPriceGross: number;
-  totalCostPriceGross: number;
-  totalProfitGross: number;
-  totalProfitNet: number;
-  source: string;
-  items: SaleItemView[];
-}
-
 export interface ProfitSummary {
-  startDate?: string | null;
-  endDate?: string | null;
+  startDate?: string;
+  endDate?: string;
   totalSalesGross: number;
   totalCostGross: number;
   totalProfitGross: number;

@@ -2,7 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
-import { LoginRequest, LoginResponse, User } from '../models/types';
+import { LoginRequest, LoginResponse, UserDto } from '../models/types';
 
 const TOKEN_KEY = 'prime_auth_token';
 const USER_KEY = 'prime_auth_user';
@@ -15,7 +15,7 @@ export class AuthService {
   private readonly router = inject(Router);
 
   // Reactive state signals
-  readonly currentUser = signal<User | null>(null);
+  readonly currentUser = signal<UserDto | null>(null);
   readonly token = signal<string | null>(null);
 
   // Computed state
@@ -81,10 +81,11 @@ export class AuthService {
    * Saves credentials and user metadata to reactive signals & localStorage
    */
   private setSession(authResult: LoginResponse): void {
-    const user: User = {
+    const user: UserDto = {
       username: authResult.username,
       fullName: authResult.fullName,
-      role: authResult.role
+      role: authResult.role,
+      active: true
     };
 
     localStorage.setItem(TOKEN_KEY, authResult.token);

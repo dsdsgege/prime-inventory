@@ -1,9 +1,10 @@
 .login-wrapper {
-  min-height: calc(100vh - 80px);
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
+  background-color: #60a5fa;
 }
 
 .login-card {
@@ -148,6 +149,7 @@
 }
 
 .login-footer {
+  height: 0;
   text-align: center;
   margin-top: 1.75rem;
   padding-top: 1.25rem;

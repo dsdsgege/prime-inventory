@@ -83,7 +83,12 @@ export class UploadComponent {
     });
   }
 
-  goToReceiving(): void {
-    this.router.navigate(['/receiving']);
+  goToInventory(): void {
+    this.router.navigate(['/inventory']);
+  }
+
+  getTotalUnits(invoice: InvoiceDetail): number {
+    if (!invoice || !invoice.items) return 0;
+    return invoice.items.reduce((sum, item) => sum + (item.initialQuantity || 0), 0);
   }
 }

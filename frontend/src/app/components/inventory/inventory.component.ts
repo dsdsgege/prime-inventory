@@ -111,6 +111,17 @@ export class InventoryComponent implements OnInit {
     });
   }
 
+  markDamaged(item: InventoryItemView): void {
+    if (!confirm(`Biztosan "Sérült" állapotúra állítja a(z) "${item.productName}" terméket?`)) return;
+    const request: UpdateStatusRequest = { status: 'DAMAGED', notes: 'Manuálisan sérültnek jelölve' };
+    this.api.updateInventoryStatus(item.id, request).subscribe({
+      next: () => {
+        this.notificationService.info(`"${item.productName}" sérültnek jelölve.`);
+        this.loadInventory();
+      }
+    });
+  }
+
   // Computed
   get inStockCount(): number {
     return this.items.filter(it => it.status === 'IN_STOCK').length;

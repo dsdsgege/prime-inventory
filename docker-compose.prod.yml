@@ -1,0 +1,48 @@
+# Production deployment configuration for 2GB VPS
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  postgres:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  parser-service:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 128M
+        reservations:
+          memory: 64M
+
+  backend:
+    restart: always
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: "-XX:+UseSerialGC -Xms256m -Xmx384m -XX:+ExitOnOutOfMemoryError"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  frontend:
+    restart: always
+    ports:
+      # Bound to localhost only. Host Nginx forwards inventory.primemobile.hu to 127.0.0.1:3000
+      - "127.0.0.1:3000:80"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 64M
+        reservations:
+          memory: 32M

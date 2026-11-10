@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: prime-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-primemobile_db}
+      POSTGRES_USER: ${POSTGRES_USER:-primemobile}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prime_secret_2026}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - prime-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-primemobile} -d ${POSTGRES_DB:-primemobile_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  parser-service:
+    build:
+      context: ./parser-service
+      dockerfile: Dockerfile
+    container_name: prime-parser
+    restart: unless-stopped
+    networks:
+      - prime-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: prime-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-primemobile_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-primemobile}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-prime_secret_2026}
+      APP_PARSER_SERVICE_URL: http://parser-service:5000
+      APP_JWT_SECRET: ${JWT_SECRET:-default_jwt_secret_must_be_at_least_256_bits_long_key_for_prime_mobile_inventory_2026}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:+UseSerialGC -Xms256m -Xmx384m -XX:+ExitOnOutOfMemoryError}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      parser-service:
+        condition: service_healthy
+    networks:
+      - prime-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: prime-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - prime-net
+
+networks:
+  prime-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

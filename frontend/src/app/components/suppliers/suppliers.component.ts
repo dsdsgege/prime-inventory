@@ -71,14 +71,14 @@ export class SuppliersComponent implements OnInit {
       };
       entry.invoiceCount++;
       entry.totalItems += inv.itemsCount || 0;
-      entry.totalInStockQty += inv.totalCurrentQuantity || 0;
+      entry.totalInStockQty += inv.totalGrossAmount || 0;
       map.set(name, entry);
     }
     return Array.from(map.values());
   }
 
   calculateMetrics(): void {
-    this.totalInStockAcrossAll = this.invoices.reduce((acc, inv) => acc + (inv.totalCurrentQuantity || 0), 0);
+    this.totalInStockAcrossAll = this.invoices.reduce((acc, inv) => acc + (inv.itemsCount || 0), 0);
   }
 
   selectSupplier(supplier: DerivedSupplier): void {

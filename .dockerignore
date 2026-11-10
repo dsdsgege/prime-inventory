@@ -1,0 +1,13 @@
+.git
+.gitignore
+*.zip
+pendrive_export
+venv
+backend/site-packages
+backend/__pycache__
+frontend/node_modules
+frontend/dist
+sample_invoices
+*.command
+*.sh
+.gemini

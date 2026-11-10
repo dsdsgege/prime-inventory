@@ -98,8 +98,8 @@ export class StockComponent implements OnInit {
     const request: SellItemRequest = {
       inventoryItemId: this.activeItem.id,
       sellingPriceGross: this.sellingPriceGross,
-      customerName: this.customerName.trim() || null,
-      notes: this.saleNotes.trim() || null
+      customerName: this.customerName.trim() || undefined,
+      notes: this.saleNotes.trim() || undefined
     };
 
     this.api.sellItem(request).subscribe({
